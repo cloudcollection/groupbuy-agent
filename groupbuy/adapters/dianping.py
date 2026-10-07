@@ -274,3 +274,80 @@ class DianpingAdapter:
     def collect_ui(self, task, runtime, driver, prior=None):
         from .ui_flow import collect
         return collect(task, runtime, driver, prior)
+
+    def capture_entry(self, task, entry):
+        """Project a normally reported HAR entry before local persistence."""
+        import base64
+        import json
+        from urllib.parse import urlsplit, urlunsplit, urlencode
+        from ..local_input import decode, params
+        from ..privacy import clean
+        request = entry.get('request', {})
+        url = urlsplit(request.get('url', ''))
+        host = (url.hostname or '').lower()
+        if url.scheme != 'https' or not any(host == h or host.endswith('.' + h)
+                                           for h in ('dianping.com', 'meituan.com')):
+            return None
+        if url.username or url.password or 'search' not in url.path.lower():
+            return None
+        query = params(request)
+        if norm(query.get('keyword', query.get('searchkeyword', query.get('query')))) != norm(task['search_term']):
+            return None
+        response = entry.get('response', {})
+        if response.get('status') != 200:
+            raise GateError('capture_http_failure')
+        content = response.get('content', {})
+        body = content.get('text', '')
+        if content.get('encoding') == 'base64':
+            try:
+                body = base64.b64decode(body, validate=True)
+            except ValueError:
+                raise GateError('invalid_response_encoding') from None
+        value = decode(body)
+        if not isinstance(value, dict) or not isinstance(value.get('data'), dict):
+            return None
+        data = value['data']
+        if not isinstance(data.get('list'), list):
+            return None
+        shop_keys = {'shopUuid', 'shopId', 'shopID', 'shopName', 'name', 'branchName',
+                     'categoryName', 'category', 'shopType', 'score', 'rating', 'star',
+                     'avgPrice', 'averagePrice', 'price', 'priceUnit', 'currency',
+                     'reviewCount', 'commentCount', 'address', 'shopAddress', 'fullAddress',
+                     'regionName', 'businessArea', 'distanceText', 'distance', 'distanceCenter'}
+        product_keys = {'shopUuid', 'shopId', 'shopID', 'productId', 'mtProductId', 'dealId',
+                        'dealID', 'couponId', 'voucherId', 'dealTitle', 'couponTitle', 'couponName',
+                        'title', 'name', 'typeName', 'productType', 'dealType', 'salePrice',
+                        'dealGroupPrice', 'price', 'originalPrice', 'marketPrice', 'priceUnit',
+                        'currency', 'salesText', 'soldText', 'sales', 'rulesText', 'useRules',
+                        'usageRules', 'rules'}
+
+        def project(node, keys=None):
+            if isinstance(node, dict):
+                result = {}
+                for key, child in node.items():
+                    if keys and key in keys:
+                        result[key] = clean(child)
+                    elif key == 'shopInfo':
+                        result[key] = project(child, shop_keys)
+                    elif key in DEAL_ROOTS:
+                        result[key] = project(child, product_keys)
+                    elif isinstance(child, (dict, list)):
+                        kept = project(child, keys)
+                        if kept:
+                            result[key] = kept
+                return result
+            if isinstance(node, list):
+                return [project(child, keys) for child in node]
+            return None
+
+        projected = {'code': value.get('code', 200), 'data': {
+            **{k: data[k] for k in ('start', 'nextStartIndex', 'isEnd', 'keyword') if k in data},
+            'list': project(data['list'])}}
+        # Supplied city/filter differences remain so the parser rejects conflicts.
+        # No original headers, cookies, request bodies, coordinates or UI decoration.
+        safe_url = urlunsplit(('https', host, url.path, urlencode(query), ''))
+        return {'startedDateTime': entry['startedDateTime'],
+                'request': {'method': request.get('method', 'GET'), 'url': safe_url, 'headers': [], 'cookies': []},
+                'response': {'status': 200, 'headers': [], 'cookies': [],
+                             'content': {'mimeType': 'application/json',
+                                         'text': json.dumps(clean(projected), ensure_ascii=False)}}}

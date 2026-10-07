@@ -1,5 +1,7 @@
 # 安装、现场操作与恢复
 
+CLI / UI 独立 Agent 与自动 HAR 的推荐流程见 [cli-ui-guide.md](cli-ui-guide.md)。下文描述人工输入工具模式；`ui`/`run` 命令不会启动自动报告接收器。
+
 核心需要 Python 3.10+ 和 Git。直接在项目根目录运行即可，不必将核心安装到系统 Python。setup.ps1 可建立 D 盘虚拟环境；WithUI 安装可选的 pywinauto、RapidOCR、Pillow 和 psutil，网络或依赖安装失败时明确停止。脚本不修改全局 Git 用户身份，不注册系统任务。
 
 ## 离线读取

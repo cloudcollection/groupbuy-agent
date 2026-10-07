@@ -127,6 +127,11 @@ class Runner:
             if task_id not in state['tasks'] or state['tasks'][task_id]['status'] not in {'STOPPED', 'REVIEW'}:
                 raise GateError('task_not_retryable')
             record = state['tasks'][task_id]
+            task = next(t for t in self.c['tasks'] if t['task_id'] == task_id)
+            if task['input']['kind'] == 'reqable':
+                # A manual retry starts a fresh normal search; interrupted capture is immutable.
+                for key in ('ui_evidence', 'capture_session', 'auto_har'):
+                    record.pop(key, None)
             # Risk/focus interrupted UI must be freshly observed and searched.
             if record.get('error') in {'verification_or_login', 'foreground_changed', 'window_changed', 'interrupted'}:
                 record.pop('ui_evidence', None)
@@ -134,7 +139,10 @@ class Runner:
             self.save(state)
             return {'task_id': task_id, 'status': 'PENDING'}
 
-    def run(self, driver=None, offline=False, schedule_slot=None):
+    def run(self, driver=None, offline=False, schedule_slot=None, task_ids=None):
+        # A caller may narrow a batch, but must retain all global failure gates.
+        if task_ids is not None and (not task_ids or not set(task_ids) <= {t['task_id'] for t in self.c['tasks']}):
+            raise GateError('unknown_task')
         with FileLock(self.progress_path.with_suffix('.lock')):
             state = self.load_state()
             if schedule_slot:
@@ -157,6 +165,8 @@ class Runner:
                     record = state['tasks'][task['task_id']]
                     if record['status'] not in {'PENDING', 'RUNNING'}:
                         continue
+                    if task_ids is not None and task['task_id'] not in task_ids:
+                        continue
                     if len(processed) >= self.c['runtime']['batch_size']:
                         break
                     record.update(status='RUNNING', attempts=record['attempts'] + 1)
@@ -178,10 +188,15 @@ class Runner:
                         else:
                             evidence = load_json(path_from(self.c['_root'], task['input']['evidence']))
                         adapter.validate_evidence(task, evidence)
-                        source = path_from(self.c['_root'], task['input']['path'])
+                        if task['input']['kind'] == 'reqable':
+                            from .capture import capture_source
+                            source = capture_source(self.c, task, record)
+                        else:
+                            source = path_from(self.c['_root'], task['input']['path'])
                         if not source.is_file():
                             raise GateError('input_not_ready')
-                        entries = list(read_responses(source, task['input']['kind'], evidence['capture_start'], evidence['capture_end']))
+                        kind = 'har' if task['input']['kind'] == 'reqable' else task['input']['kind']
+                        entries = list(read_responses(source, kind, evidence['capture_start'], evidence['capture_end']))
                         result = adapter.parse(task, entries, evidence)
                         result['task_hash'] = task_hash(task)
                         # UI proof is a narrow, sanitized record; no OCR dump or screenshot.

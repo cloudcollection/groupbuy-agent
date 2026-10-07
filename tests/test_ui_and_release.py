@@ -113,6 +113,16 @@ class ReleaseTests(unittest.TestCase):
         report = self.mod.scan()
         self.assertTrue(any(x['surface'] == 'index' and 'outside_publication_allowlist' in x['codes'] for x in report['issues']))
 
+    def test_phone_scan_distinguishes_structured_hash_and_actual_phone(self):
+        phone = '138' + '00000000'
+        sha = 'a' + phone + 'a' * 52
+        def check(value):
+            return self.mod.findings_for('fixture.json', json.dumps(value).encode(), False, set())
+        self.assertNotIn('phone', check({'source_sha256': sha, 'files': {'shops.csv': sha}}))
+        self.assertIn('phone', check({'note': sha}))
+        self.assertIn('phone', check({'source_sha256': phone}))
+        self.assertIn('phone', check({'source_sha256': sha, 'phone': phone}))
+
     def test_deleted_historical_secret_detected(self):
         (self.root / 'README.md').write_text('access_' + 'token=' + 'X' * 25, encoding='utf-8')
         self.git('add', 'README.md', 'publication-files.json')
@@ -123,6 +133,19 @@ class ReleaseTests(unittest.TestCase):
         report = self.mod.scan()
         self.assertTrue(any(x['surface'] == 'history' for x in report['issues']))
         self.assertEqual(report['counts']['history_commits'], 2)
+
+    def test_projected_capture_is_local_only_and_still_scanned(self):
+        from groupbuy.adapters.dianping import DianpingAdapter
+        from tests.test_capture import report
+        raw = report()
+        safe = DianpingAdapter().capture_entry({'search_term': '示例广场'}, raw)
+        doc = {'_groupbuy_projected': True, 'log': {'version': '1.2', 'creator': {}, 'entries': [safe]}}
+        path = 'runtime/capture/task/session/input.har'
+        data = json.dumps(doc).encode()
+        self.assertNotIn('forbidden_file_type', self.mod.findings_for(path, data, False, set()))
+        self.assertIn('forbidden_file_type', self.mod.findings_for(path, data, True, {path}))
+        safe['request']['headers'] = raw['request']['headers']
+        self.assertIn('forbidden_file_type', self.mod.findings_for(path, json.dumps(doc).encode(), False, set()))
 
 
 if __name__ == '__main__':

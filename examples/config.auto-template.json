@@ -1,0 +1,289 @@
+{
+  "version": 1,
+  "mode": "live",
+  "synthetic": true,
+  "runtime": {
+    "batch_size": 5,
+    "max_scrolls": 180,
+    "wheel_steps": 10,
+    "wait_seconds": [
+      1,
+      2
+    ],
+    "retry_limit": 2,
+    "evidence_mode": "structured",
+    "output_dir": "runtime/outputs",
+    "progress_path": "runtime/progress.json"
+  },
+  "schedule": {
+    "enabled": false,
+    "timezone": "Asia/Shanghai",
+    "times": [
+      "09:00",
+      "12:00",
+      "15:00",
+      "19:00"
+    ],
+    "live_confirmed": false
+  },
+  "tasks": [
+    {
+      "task_id": "AUTO-001",
+      "platform": "dianping",
+      "search_term": "虚构广场1",
+      "target_location": {
+        "city": "示例市",
+        "center_name": "虚构广场1"
+      },
+      "filters": {
+        "category": "美食",
+        "range_text": "3km"
+      },
+      "fields": {
+        "shops": "*",
+        "products": "*"
+      },
+      "output_formats": [
+        "json",
+        "csv"
+      ],
+      "status": "PENDING",
+      "input": {
+        "kind": "reqable",
+        "path": "runtime/capture/AUTO-001",
+        "evidence": "runtime/manual-evidence/AUTO-001.json"
+      },
+      "ui_profile": {
+        "window_title_regex": "大众点评",
+        "process_names": [
+          "WeChat.exe",
+          "Weixin.exe",
+          "WeChatAppEx.exe"
+        ],
+        "list_anchor": "智能排序",
+        "steps": [
+          {
+            "action": "type_search",
+            "text": "搜索商家"
+          },
+          {
+            "action": "click",
+            "text": "美食"
+          },
+          {
+            "action": "click",
+            "text": "3km"
+          }
+        ]
+      }
+    },
+    {
+      "task_id": "AUTO-002",
+      "platform": "dianping",
+      "search_term": "虚构广场2",
+      "target_location": {
+        "city": "示例市",
+        "center_name": "虚构广场2"
+      },
+      "filters": {
+        "category": "美食",
+        "range_text": "3km"
+      },
+      "fields": {
+        "shops": "*",
+        "products": "*"
+      },
+      "output_formats": [
+        "json",
+        "csv"
+      ],
+      "status": "PENDING",
+      "input": {
+        "kind": "reqable",
+        "path": "runtime/capture/AUTO-002",
+        "evidence": "runtime/manual-evidence/AUTO-002.json"
+      },
+      "ui_profile": {
+        "window_title_regex": "大众点评",
+        "process_names": [
+          "WeChat.exe",
+          "Weixin.exe",
+          "WeChatAppEx.exe"
+        ],
+        "list_anchor": "智能排序",
+        "steps": [
+          {
+            "action": "type_search",
+            "text": "搜索商家"
+          },
+          {
+            "action": "click",
+            "text": "美食"
+          },
+          {
+            "action": "click",
+            "text": "3km"
+          }
+        ]
+      }
+    },
+    {
+      "task_id": "AUTO-003",
+      "platform": "dianping",
+      "search_term": "虚构广场3",
+      "target_location": {
+        "city": "示例市",
+        "center_name": "虚构广场3"
+      },
+      "filters": {
+        "category": "美食",
+        "range_text": "3km"
+      },
+      "fields": {
+        "shops": "*",
+        "products": "*"
+      },
+      "output_formats": [
+        "json",
+        "csv"
+      ],
+      "status": "PENDING",
+      "input": {
+        "kind": "reqable",
+        "path": "runtime/capture/AUTO-003",
+        "evidence": "runtime/manual-evidence/AUTO-003.json"
+      },
+      "ui_profile": {
+        "window_title_regex": "大众点评",
+        "process_names": [
+          "WeChat.exe",
+          "Weixin.exe",
+          "WeChatAppEx.exe"
+        ],
+        "list_anchor": "智能排序",
+        "steps": [
+          {
+            "action": "type_search",
+            "text": "搜索商家"
+          },
+          {
+            "action": "click",
+            "text": "美食"
+          },
+          {
+            "action": "click",
+            "text": "3km"
+          }
+        ]
+      }
+    },
+    {
+      "task_id": "AUTO-004",
+      "platform": "dianping",
+      "search_term": "虚构广场4",
+      "target_location": {
+        "city": "示例市",
+        "center_name": "虚构广场4"
+      },
+      "filters": {
+        "category": "美食",
+        "range_text": "3km"
+      },
+      "fields": {
+        "shops": "*",
+        "products": "*"
+      },
+      "output_formats": [
+        "json",
+        "csv"
+      ],
+      "status": "PENDING",
+      "input": {
+        "kind": "reqable",
+        "path": "runtime/capture/AUTO-004",
+        "evidence": "runtime/manual-evidence/AUTO-004.json"
+      },
+      "ui_profile": {
+        "window_title_regex": "大众点评",
+        "process_names": [
+          "WeChat.exe",
+          "Weixin.exe",
+          "WeChatAppEx.exe"
+        ],
+        "list_anchor": "智能排序",
+        "steps": [
+          {
+            "action": "type_search",
+            "text": "搜索商家"
+          },
+          {
+            "action": "click",
+            "text": "美食"
+          },
+          {
+            "action": "click",
+            "text": "3km"
+          }
+        ]
+      }
+    },
+    {
+      "task_id": "AUTO-005",
+      "platform": "dianping",
+      "search_term": "虚构广场5",
+      "target_location": {
+        "city": "示例市",
+        "center_name": "虚构广场5"
+      },
+      "filters": {
+        "category": "美食",
+        "range_text": "3km"
+      },
+      "fields": {
+        "shops": "*",
+        "products": "*"
+      },
+      "output_formats": [
+        "json",
+        "csv"
+      ],
+      "status": "PENDING",
+      "input": {
+        "kind": "reqable",
+        "path": "runtime/capture/AUTO-005",
+        "evidence": "runtime/manual-evidence/AUTO-005.json"
+      },
+      "ui_profile": {
+        "window_title_regex": "大众点评",
+        "process_names": [
+          "WeChat.exe",
+          "Weixin.exe",
+          "WeChatAppEx.exe"
+        ],
+        "list_anchor": "智能排序",
+        "steps": [
+          {
+            "action": "type_search",
+            "text": "搜索商家"
+          },
+          {
+            "action": "click",
+            "text": "美食"
+          },
+          {
+            "action": "click",
+            "text": "3km"
+          }
+        ]
+      }
+    }
+  ],
+  "capture": {
+    "enabled": true,
+    "port": 8765,
+    "settings_path": "runtime/capture/receiver.local.json",
+    "storage_dir": "runtime/capture",
+    "settle_seconds": 2,
+    "timeout_seconds": 30
+  }
+}

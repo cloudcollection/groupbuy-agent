@@ -45,7 +45,7 @@ def validate_task(t):
                      'classification': {'classification_basis'}}
             if any(k in f and not deps <= set(f) for k, deps in needs.items()):
                 raise GateError('missing_field_semantics')
-    if t['input'].get('kind') not in {'har', 'json'}:
+    if t['input'].get('kind') not in {'har', 'json', 'reqable'}:
         raise GateError('unsupported_input')
     for k in ('path', 'evidence'):
         if not isinstance(t['input'].get(k), str):
@@ -78,6 +78,8 @@ def load_config(path, project_root=None):
     c['_root'] = root
     c['_output'] = path_from(root, r['output_dir'], write=True)
     c['_progress'] = path_from(root, r['progress_path'], write=True)
+    from .capture import validate_capture_config
+    validate_capture_config(c)
     if c['_output'] == root or root in c['_output'].parents and c['_output'].parts[-1] in {'groupbuy', 'tests', 'examples', 'docs'}:
         raise GateError('unsafe_output_directory')
     s = c['schedule']

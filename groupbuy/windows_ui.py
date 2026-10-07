@@ -6,9 +6,11 @@ from .common import GateError, path_from
 
 
 class WindowsDriver:
-    def __init__(self):
+    def __init__(self, cancel_event=None):
         if os.name != 'nt':
             raise GateError('windows_required')
+        self.cancel_event = cancel_event
+        self.focus_initial = True
         # Dependencies and models must live on D:. No global user cache is used.
         temp = os.environ.get('GB_TEMP_DIR')
         if not temp:
@@ -26,12 +28,16 @@ class WindowsDriver:
         self.ocr, self.desktop, self.gui, self.psutil = RapidOCR(), Desktop(backend='win32'), win32gui, psutil
 
     def observe(self, profile):
+        self._cancel()
         windows = self.desktop.windows(title_re=profile.get('window_title_regex', '大众点评'), visible_only=True)
         windows = [w for w in windows if self.psutil.Process(w.process_id()).name().lower()
                    in {x.lower() for x in profile.get('process_names', ['WeChat.exe', 'Weixin.exe'])}]
         if len(windows) != 1:
             raise GateError('ambiguous_or_missing_window')
         w = windows[0]
+        if self.focus_initial:
+            w.set_focus()
+            self.focus_initial = False
         image = w.capture_as_image()
         import numpy as np
         found, _ = self.ocr(np.asarray(image))
@@ -56,6 +62,7 @@ class WindowsDriver:
                 'origin': [rect.left, rect.top]}
 
     def _current(self, frame):
+        self._cancel()
         w = frame['wrapper']
         rect = w.rectangle()
         if (self.gui.GetForegroundWindow() != w.handle or
@@ -86,6 +93,7 @@ class WindowsDriver:
             raise GateError('window_occluded')
 
     def type_search(self, text):
+        self._cancel()
         # Literal Unicode input; braces are escaped for pywinauto key syntax.
         from pywinauto.keyboard import send_keys
         if not getattr(self, 'input_window', None) or self.gui.GetForegroundWindow() != self.input_window:
@@ -104,4 +112,12 @@ class WindowsDriver:
         mouse.scroll(coords=(frame['origin'][0] + x, frame['origin'][1] + y), wheel_dist=-steps)
 
     def wait(self, seconds):
-        time.sleep(seconds)
+        if self.cancel_event is not None:
+            if self.cancel_event.wait(seconds):
+                raise KeyboardInterrupt
+        else:
+            time.sleep(seconds)
+
+    def _cancel(self):
+        if self.cancel_event is not None and self.cancel_event.is_set():
+            raise KeyboardInterrupt

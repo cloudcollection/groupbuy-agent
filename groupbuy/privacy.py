@@ -8,6 +8,7 @@ PRIVATE_KEYS = {'cookie', 'setcookie', 'authorization', 'token', 'accesstoken',
                 'mylng', 'userlatitude', 'userlongitude', 'payinfo', 'orderid',
                 'redemptioncode', 'voucherpassword', 'certificate', 'headers'}
 PATTERNS = [
+    re.compile(r'\b(?:sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,})\b'),
     re.compile(r'(?<!\d)1[3-9]\d{9}(?!\d)'),
     re.compile(r'(?<!\d)\d{17}[\dXx](?!\w)'),
     re.compile(r'(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b'),

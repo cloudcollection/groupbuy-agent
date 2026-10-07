@@ -12,6 +12,9 @@ def main():
     sub = p.add_subparsers(dest='command', required=True)
     sub.add_parser('plan')
     sub.add_parser('doctor')
+    sub.add_parser('capture-init', help='Prepare the private loopback URL for Reqable report server')
+    dashboard = sub.add_parser('dashboard', help='Local web UI; CLI and UI share the same Agent')
+    dashboard.add_argument('--port', type=int, default=8787)
     r = sub.add_parser('run')
     r.add_argument('--offline', action='store_true')
     u = sub.add_parser('ui')
@@ -20,6 +23,11 @@ def main():
     retry = sub.add_parser('retry')
     retry.add_argument('--task', required=True)
     sub.add_parser('schedule')
+    a = sub.add_parser('agent', help='Independent OpenAI tool loop; no Codex required')
+    a.add_argument('--settings', default='examples/agent.example.json')
+    a.add_argument('--allow-ui', action='store_true')
+    a.add_argument('--demo', action='store_true', help='Scripted synthetic demo; no API calls')
+    a.add_argument('--schedule', action='store_true', help='Foreground Agent schedule, disabled by default')
     m = sub.add_parser('merge')
     m.add_argument('--inputs', nargs='+', required=True)
     m.add_argument('--output', required=True)
@@ -29,6 +37,13 @@ def main():
         runner = Runner(c)
         if args.command == 'plan':
             result = runner.plan()
+        elif args.command == 'capture-init':
+            from .capture import capture_info
+            result = capture_info(c)
+        elif args.command == 'dashboard':
+            from .dashboard import serve_dashboard
+            serve_dashboard(c, args.port)
+            return 0
         elif args.command == 'doctor':
             import importlib.util
             import os
@@ -41,6 +56,14 @@ def main():
             result = merge([path_from(c['_root'], x) for x in args.inputs], path_from(c['_root'], args.output, write=True))
         elif args.command == 'retry':
             result = runner.retry(args.task)
+        elif args.command == 'agent':
+            from .agent import run_agent, serve_agent
+            from .agent_runtime import load_settings
+            settings = load_settings(args.settings)
+            if args.demo and args.schedule:
+                raise GateError('demo_schedule_rejected')
+            result = (serve_agent(c, settings, allow_ui=args.allow_ui) if args.schedule else
+                      run_agent(c, settings, allow_ui=args.allow_ui, demo=args.demo))
         else:
             driver = None
             if args.command == 'ui' or c['mode'] == 'live' and not getattr(args, 'offline', False):
@@ -55,7 +78,9 @@ def main():
             else:
                 result = runner.run(driver, args.offline)
         print(json.dumps(result, ensure_ascii=False, indent=2))
-        if isinstance(result, dict) and result.get('status') in {'ATTENTION_REQUIRED', 'STOPPED', 'REVIEW'}:
+        if isinstance(result, dict) and result.get('status') in {
+                'ATTENTION_REQUIRED', 'STOPPED', 'REVIEW', 'WAITING_INPUT', 'UI_REQUIRED',
+                'UI_UNAVAILABLE', 'INCOMPLETE', 'INTERRUPTED'}:
             return 2
         return 0
     except KeyboardInterrupt:

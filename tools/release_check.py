@@ -23,6 +23,28 @@ SECRET_PATTERNS = {
 FORBIDDEN_SUFFIXES = {'.har', '.pem', '.pfx', '.p12', '.key', '.reqable', '.log', '.jsonl', '.zip', '.xlsx', '.png'}
 
 
+def phone_scan_text(text):
+    """Do not interpret numeric runs inside structured SHA-256 values as phones."""
+    try:
+        value = json.loads(text)
+    except ValueError:
+        return text
+    hash_fields = {'task_hash', 'result_digest', 'manifest_sha256', 'allowlist_sha256',
+                   'source_sha256', 'source_hash', 'filter_frame_hash', 'final_frame_hash', 'list_hash',
+                   'sha256', 'evidence_sha256'}
+    artifact_names = {'result.json', 'compact.json', 'shops.csv', 'products.csv'}
+
+    def scrub(item, parent=None):
+        if isinstance(item, dict):
+            return {k: ('[integrity-hash]' if isinstance(v, str) and re.fullmatch(r'[a-f0-9]{64}', v)
+                        and (k in hash_fields or parent == 'files' and k in artifact_names)
+                        else scrub(v, k)) for k, v in item.items()}
+        if isinstance(item, list):
+            return [scrub(v, parent) for v in item]
+        return item
+    return json.dumps(scrub(value), ensure_ascii=False)
+
+
 def git(*args):
     p = subprocess.run(['git', '-C', str(ROOT), *args], capture_output=True)
     if p.returncode:
@@ -30,19 +52,45 @@ def git(*args):
     return p.stdout
 
 
+def local_projected_har(path, data):
+    """Allow only the receiver's public-field snapshot in local runtime, never Git."""
+    if not path.startswith('runtime/') or '/capture/' not in path or not path.endswith('/input.har'):
+        return False
+    try:
+        from groupbuy.adapters.dianping import DianpingAdapter
+        from groupbuy.local_input import params
+        doc = json.loads(data)
+        if set(doc) != {'log', '_groupbuy_projected'} or doc['_groupbuy_projected'] is not True:
+            return False
+        log = doc['log']
+        if set(log) != {'version', 'creator', 'entries'} or log['version'] != '1.2':
+            return False
+        if not isinstance(log['entries'], list) or not log['entries']:
+            return False
+        for entry in log['entries']:
+            query = params(entry['request'])
+            keyword = query.get('keyword', query.get('searchkeyword', query.get('query')))
+            if not keyword or DianpingAdapter().capture_entry({'search_term': keyword}, entry) != entry:
+                return False
+        return True
+    except (KeyError, TypeError, ValueError, GateError):
+        return False
+
+
 def findings_for(path, data, published, allowed):
     findings = []
     if published and path not in allowed:
         findings.append('outside_publication_allowlist')
     local_status_log = not published and path.startswith('runtime/') and Path(path).suffix.lower() in {'.jsonl', '.log'}
-    if Path(path).suffix.lower() in FORBIDDEN_SUFFIXES and not local_status_log:
+    projected = not published and local_projected_har(path, data) if Path(path).suffix.lower() == '.har' else False
+    if Path(path).suffix.lower() in FORBIDDEN_SUFFIXES and not local_status_log and not projected:
         findings.append('forbidden_file_type')
     try:
         text = data.decode('utf-8-sig')
     except UnicodeError:
         return findings + ['unreviewed_binary']
     for label, pattern in SECRET_PATTERNS.items():
-        if pattern.search(text):
+        if pattern.search(phone_scan_text(text) if label == 'phone' else text):
             findings.append(label)
     return findings
 

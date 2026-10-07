@@ -28,3 +28,20 @@ target_location 支持 city（必填）、business_area、merchant_name、addres
 schedule 默认 disabled，timezone 当前仅支持 Asia/Shanghai。times 示例为 09:00、12:00、15:00、19:00。现场调度额外需要 live_confirmed=true，表示操作者已经在自己的电脑完成首项和首批验证，不是程序自动给出的认证。
 
 配置中的 status 是新任务的初始状态。已有进度以进度文件为准；完成状态必须由质量门禁和结果清单产生，不能直接配置为 COMPLETE。任务定义变化会改变配置哈希，程序拒绝复用旧进度；修改任务含义时分配新 task_id 或使用独立 progress_path，不篡改旧记录。
+
+## 自动 HAR 配置
+
+模板为 `examples/config.auto-template.json`。`input.kind=reqable` 时，`input.path` 为独立采集目录，必须位于 capture.storage_dir 下。Agent 每次创建会话目录，保存公开字段投影后的条目及 input.har、绑定清单。终页证据、任务哈希与 HAR 哈希同时匹配才可解析。手工 HAR/JSON 输入继续兼容。
+
+| capture 参数 | 默认与作用 |
+|---|---|
+| enabled | false；reqable 输入必须显式开启 |
+| port | 8765；只监听 127.0.0.1 |
+| settings_path | runtime/capture/receiver.local.json；随机上传路径，不发布 |
+| storage_dir | runtime/capture；每任务目录必须互不相同 |
+| settle_seconds | 2；完整分页后等待报告稳定 |
+| timeout_seconds | 30；缺页或无报告超时停止，最大 120 |
+
+接收压缩限 gzip 或不压缩，每报告压缩前/后最大 8 MiB，每报告最多 1000 条，每任务最多 5000 条。报告协议错误不会记录原始内容。官方报告上传失败无重试，重新采集需要显式重试任务。
+
+本地网页默认端口 8787，与捕获端口不同。保存表单会创建 `runtime/ui-workspaces/<编号>`；输出、进度及采集目录互相隔离。接收器私有 URL 配置共用，切换工作区无需重新输入 Reqable URL。详见 [cli-ui-guide.md](cli-ui-guide.md)。
