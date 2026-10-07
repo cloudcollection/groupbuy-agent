@@ -1,0 +1,33 @@
+{
+  "schema": "groupbuy.ui-evidence.v1",
+  "synthetic": true,
+  "task_id": "DEMO-001",
+  "task_hash": "d6ebd9573acc2ea30d243bf0878776df35c6084ebaf3555f1ef9dfbc3e48390f",
+  "search_term": "示例广场",
+  "target_location": {
+    "city": "示例市",
+    "business_area": "虚构商圈",
+    "center_name": "示例广场"
+  },
+  "selected_filters": {
+    "category": "美食",
+    "range_text": "3km"
+  },
+  "search_confirmed": true,
+  "target_confirmed": true,
+  "filters_confirmed": true,
+  "capture_start": "2030-01-01T09:00:00+08:00",
+  "capture_end": "2030-01-01T09:10:00+08:00",
+  "filter_frame_hash": "19c9b80aa589ac314d08321c6094e4b390788a28726f9f865ab0b1bc7595e405",
+  "final_frame_hash": "40566d3da55b936be955164044b34824d175bca0001a58d6a1f541564edac74b",
+  "list_hash": "e1c4eed39b0dfa54372fc34b019cd020488e734651cd2e1891a40b4a6505d01c",
+  "window_id": "synthetic-window",
+  "window_size": [
+    640,
+    960
+  ],
+  "risk": false,
+  "stop_reason": "explicit_bottom",
+  "bottom_reached": true,
+  "bottom_text": "没有更多"
+}

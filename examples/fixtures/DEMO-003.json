@@ -1,0 +1,153 @@
+{
+  "schema": "groupbuy.local-responses.v1",
+  "synthetic": true,
+  "entries": [
+    {
+      "captured_at": "2030-01-01T09:01:00+08:00",
+      "round_id": "fictional-round-1",
+      "request": {
+        "keyword": "示例广场",
+        "start": 0,
+        "category": "美食",
+        "rangetext": "3km",
+        "cityname": "示例市"
+      },
+      "response": {
+        "code": 200,
+        "data": {
+          "list": [
+            {
+              "shopInfo": {
+                "shopUuid": "fictional-shop-1",
+                "shopName": "虚构餐厅1",
+                "branchName": "示例店",
+                "categoryName": "川菜",
+                "score": "4.8",
+                "avgPrice": "¥80/人",
+                "commentCount": "100+",
+                "address": "虚构路1号",
+                "regionName": "虚构商圈",
+                "distanceText": "距搜索中心 1.2km",
+                "distanceCenter": "示例广场",
+                "shopDealInfos": [
+                  {
+                    "dealId": "fictional-product-1",
+                    "dealTitle": "虚构双人套餐",
+                    "dealType": 1,
+                    "salePrice": "¥79.90",
+                    "originalPrice": "¥120",
+                    "salesText": "已售1000+",
+                    "useRules": [
+                      "周一至周五可用",
+                      "需提前预约"
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "nextStartIndex": 1,
+          "isEnd": false
+        }
+      }
+    },
+    {
+      "captured_at": "2030-01-01T09:02:00+08:00",
+      "round_id": "fictional-round-1",
+      "request": {
+        "keyword": "示例广场",
+        "start": 0,
+        "category": "美食",
+        "rangetext": "3km",
+        "cityname": "示例市"
+      },
+      "response": {
+        "code": 200,
+        "data": {
+          "list": [
+            {
+              "shopInfo": {
+                "shopUuid": "fictional-shop-1",
+                "shopName": "虚构餐厅1",
+                "branchName": "示例店",
+                "categoryName": "川菜",
+                "score": "4.8",
+                "avgPrice": "¥80/人",
+                "commentCount": "100+",
+                "address": "虚构路1号",
+                "regionName": "虚构商圈",
+                "distanceText": "距搜索中心 1.2km",
+                "distanceCenter": "示例广场",
+                "shopDealInfos": [
+                  {
+                    "dealId": "fictional-product-1",
+                    "dealTitle": "虚构双人套餐",
+                    "dealType": 1,
+                    "salePrice": "¥79.90",
+                    "originalPrice": "¥120",
+                    "salesText": "已售1000+",
+                    "useRules": [
+                      "周一至周五可用",
+                      "需提前预约"
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "nextStartIndex": 1,
+          "isEnd": false
+        }
+      }
+    },
+    {
+      "captured_at": "2030-01-01T09:03:00+08:00",
+      "round_id": "fictional-round-1",
+      "request": {
+        "keyword": "示例广场",
+        "start": 1,
+        "category": "美食",
+        "rangetext": "3km",
+        "cityname": "示例市"
+      },
+      "response": {
+        "code": 200,
+        "data": {
+          "list": [
+            {
+              "shopInfo": {
+                "shopUuid": "fictional-shop-2",
+                "shopName": "虚构餐厅2",
+                "branchName": "示例店",
+                "categoryName": "川菜",
+                "score": "4.8",
+                "avgPrice": "¥80/人",
+                "commentCount": "100+",
+                "address": "虚构路2号",
+                "regionName": "虚构商圈",
+                "distanceText": "距搜索中心 1.2km",
+                "distanceCenter": "示例广场",
+                "shopDealInfos": [
+                  {
+                    "dealId": "fictional-product-2",
+                    "dealTitle": "虚构双人套餐",
+                    "dealType": 1,
+                    "salePrice": "¥79.90",
+                    "originalPrice": "¥120",
+                    "salesText": "已售1000+",
+                    "useRules": [
+                      "周一至周五可用",
+                      "需提前预约"
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "nextStartIndex": 0,
+          "isEnd": true
+        }
+      }
+    }
+  ]
+}

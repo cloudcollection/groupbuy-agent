@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+if [ -n "${GB_PYTHON:-}" ]; then
+  exec "$GB_PYTHON" -B tools/release_check.py
+fi
+if [ -x .venv/Scripts/python.exe ]; then
+  exec .venv/Scripts/python.exe -B tools/release_check.py
+fi
+if [ -x .venv/bin/python ]; then
+  exec .venv/bin/python -B tools/release_check.py
+fi
+exec python -B tools/release_check.py

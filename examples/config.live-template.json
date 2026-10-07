@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "mode": "live",
+  "synthetic": true,
+  "runtime": {
+    "batch_size": 5,
+    "max_scrolls": 180,
+    "wheel_steps": 10,
+    "wait_seconds": [
+      1,
+      2
+    ],
+    "retry_limit": 2,
+    "evidence_mode": "structured",
+    "output_dir": "runtime/outputs",
+    "progress_path": "runtime/progress.json"
+  },
+  "schedule": {
+    "enabled": false,
+    "timezone": "Asia/Shanghai",
+    "times": [
+      "09:00",
+      "12:00",
+      "15:00",
+      "19:00"
+    ],
+    "live_confirmed": false
+  },
+  "tasks": [
+    {
+      "task_id": "DEMO-001",
+      "platform": "dianping",
+      "search_term": "示例广场",
+      "target_location": {
+        "city": "示例市",
+        "business_area": "虚构商圈",
+        "center_name": "示例广场"
+      },
+      "filters": {
+        "category": "美食",
+        "range_text": "3km"
+      },
+      "fields": {
+        "shops": "*",
+        "products": "*"
+      },
+      "output_formats": [
+        "json",
+        "csv"
+      ],
+      "status": "PENDING",
+      "input": {
+        "kind": "har",
+        "path": "../groupbuy-local/inputs/search.har",
+        "evidence": "../groupbuy-local/inputs/ui-evidence.json"
+      },
+      "ui_profile": {
+        "window_title_regex": "大众点评",
+        "process_names": [
+          "WeChat.exe",
+          "Weixin.exe"
+        ],
+        "list_anchor": "智能排序",
+        "steps": [
+          {
+            "action": "type_search",
+            "text": "搜索商家"
+          },
+          {
+            "action": "click",
+            "text": "美食"
+          },
+          {
+            "action": "click",
+            "text": "3km"
+          }
+        ]
+      }
+    }
+  ]
+}

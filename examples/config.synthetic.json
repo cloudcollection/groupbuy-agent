@@ -1,0 +1,199 @@
+{
+  "version": 1,
+  "mode": "offline",
+  "synthetic": true,
+  "runtime": {
+    "batch_size": 5,
+    "max_scrolls": 180,
+    "wheel_steps": 10,
+    "wait_seconds": [
+      1,
+      2
+    ],
+    "retry_limit": 2,
+    "evidence_mode": "structured",
+    "output_dir": "runtime/outputs",
+    "progress_path": "runtime/progress.json"
+  },
+  "schedule": {
+    "enabled": false,
+    "timezone": "Asia/Shanghai",
+    "times": [
+      "09:00",
+      "12:00",
+      "15:00",
+      "19:00"
+    ],
+    "live_confirmed": false
+  },
+  "tasks": [
+    {
+      "task_id": "DEMO-001",
+      "platform": "dianping",
+      "search_term": "示例广场",
+      "target_location": {
+        "city": "示例市",
+        "business_area": "虚构商圈",
+        "center_name": "示例广场"
+      },
+      "filters": {
+        "category": "美食",
+        "range_text": "3km"
+      },
+      "fields": {
+        "shops": "*",
+        "products": "*"
+      },
+      "output_formats": [
+        "json",
+        "csv"
+      ],
+      "status": "PENDING",
+      "input": {
+        "kind": "json",
+        "path": "examples/fixtures/DEMO-001.json",
+        "evidence": "examples/fixtures/DEMO-001.evidence.json"
+      }
+    },
+    {
+      "task_id": "DEMO-002",
+      "platform": "dianping",
+      "search_term": "示例广场",
+      "target_location": {
+        "city": "示例市",
+        "business_area": "虚构商圈",
+        "center_name": "示例广场"
+      },
+      "filters": {
+        "category": "美食",
+        "range_text": "3km"
+      },
+      "fields": {
+        "shops": "*",
+        "products": "*"
+      },
+      "output_formats": [
+        "json",
+        "csv"
+      ],
+      "status": "PENDING",
+      "input": {
+        "kind": "json",
+        "path": "examples/fixtures/DEMO-002.json",
+        "evidence": "examples/fixtures/DEMO-002.evidence.json"
+      }
+    },
+    {
+      "task_id": "DEMO-003",
+      "platform": "dianping",
+      "search_term": "示例广场",
+      "target_location": {
+        "city": "示例市",
+        "business_area": "虚构商圈",
+        "center_name": "示例广场"
+      },
+      "filters": {
+        "category": "美食",
+        "range_text": "3km"
+      },
+      "fields": {
+        "shops": "*",
+        "products": "*"
+      },
+      "output_formats": [
+        "json",
+        "csv"
+      ],
+      "status": "PENDING",
+      "input": {
+        "kind": "json",
+        "path": "examples/fixtures/DEMO-003.json",
+        "evidence": "examples/fixtures/DEMO-003.evidence.json"
+      }
+    },
+    {
+      "task_id": "DEMO-004",
+      "platform": "dianping",
+      "search_term": "示例广场",
+      "target_location": {
+        "city": "示例市",
+        "business_area": "虚构商圈",
+        "center_name": "示例广场"
+      },
+      "filters": {
+        "category": "美食",
+        "range_text": "3km"
+      },
+      "fields": {
+        "shops": "*",
+        "products": "*"
+      },
+      "output_formats": [
+        "json",
+        "csv"
+      ],
+      "status": "PENDING",
+      "input": {
+        "kind": "json",
+        "path": "examples/fixtures/DEMO-004.json",
+        "evidence": "examples/fixtures/DEMO-004.evidence.json"
+      }
+    },
+    {
+      "task_id": "DEMO-005",
+      "platform": "dianping",
+      "search_term": "示例广场",
+      "target_location": {
+        "city": "示例市",
+        "business_area": "虚构商圈",
+        "center_name": "示例广场"
+      },
+      "filters": {
+        "category": "美食",
+        "range_text": "3km"
+      },
+      "fields": {
+        "shops": "*",
+        "products": "*"
+      },
+      "output_formats": [
+        "json",
+        "csv"
+      ],
+      "status": "PENDING",
+      "input": {
+        "kind": "json",
+        "path": "examples/fixtures/DEMO-005.json",
+        "evidence": "examples/fixtures/DEMO-005.evidence.json"
+      }
+    },
+    {
+      "task_id": "DEMO-006",
+      "platform": "dianping",
+      "search_term": "示例广场",
+      "target_location": {
+        "city": "示例市",
+        "business_area": "虚构商圈",
+        "center_name": "示例广场"
+      },
+      "filters": {
+        "category": "美食",
+        "range_text": "3km"
+      },
+      "fields": {
+        "shops": "*",
+        "products": "*"
+      },
+      "output_formats": [
+        "json",
+        "csv"
+      ],
+      "status": "PENDING",
+      "input": {
+        "kind": "json",
+        "path": "examples/fixtures/DEMO-006.json",
+        "evidence": "examples/fixtures/DEMO-006.evidence.json"
+      }
+    }
+  ]
+}
