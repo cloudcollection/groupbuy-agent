@@ -79,7 +79,7 @@ class DianpingAdapter:
         if (e.get('search_term') != task['search_term'] or e.get('target_location') != task['target_location']
                 or e.get('selected_filters') != task['filters']):
             raise GateError('search_or_filter_mismatch')
-        if not e.get('search_confirmed') or not e.get('target_confirmed') or not e.get('filters_confirmed'):
+        if any(e.get(k) is not True for k in ('search_confirmed', 'target_confirmed', 'filters_confirmed')):
             raise GateError('missing_search_evidence')
         if e.get('risk') or e.get('stop_reason') != 'explicit_bottom' or e.get('bottom_reached') is not True:
             raise GateError('incomplete_ui')
@@ -111,7 +111,7 @@ class DianpingAdapter:
             raise GateError('response_city_mismatch')
         start = cursor(data.get('start', req.get('start', req.get('startindex'))))
         nxt = cursor(data.get('nextStartIndex'))
-        if data.get('isEnd') not in (True, False):
+        if not isinstance(data.get('isEnd'), bool):
             raise GateError('missing_terminal_flag')
         return {**entry, 'start': start, 'next': nxt, 'end': data['isEnd'], 'items': data['list'],
                 'business_hash': digest({'items': data['list'], 'next': nxt, 'end': data['isEnd']})}

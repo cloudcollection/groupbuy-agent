@@ -105,13 +105,15 @@ class Runner:
             elif record['status'] != 'PENDING':
                 raise GateError('manual_retry_required')
             record['status'] = 'RUNNING'
+            if not resume:
+                record.pop('ui_evidence', None)
             self.save(state)
             try:
                 e = self._ui(task, record, get_adapter(task['platform']), driver, prior)
                 record.update(status='PENDING', error=None)
                 return {'task_id': task_id, 'status': 'UI_READY', 'stop_reason': e['stop_reason']}
-            except Exception as error:
-                code = error.code if isinstance(error, GateError) else 'operation_failed'
+            except (Exception, KeyboardInterrupt) as error:
+                code = error.code if isinstance(error, GateError) else 'interrupted' if isinstance(error, KeyboardInterrupt) else 'operation_failed'
                 record.update(status='REVIEW' if code == 'scroll_budget' else 'STOPPED', error=code)
                 if code != 'scroll_budget':
                     record.pop('ui_evidence', None)
@@ -126,7 +128,7 @@ class Runner:
                 raise GateError('task_not_retryable')
             record = state['tasks'][task_id]
             # Risk/focus interrupted UI must be freshly observed and searched.
-            if record.get('error') in {'verification_or_login', 'foreground_changed', 'window_changed'}:
+            if record.get('error') in {'verification_or_login', 'foreground_changed', 'window_changed', 'interrupted'}:
                 record.pop('ui_evidence', None)
             record.update(status='PENDING', error=None)
             self.save(state)
@@ -167,6 +169,8 @@ class Runner:
                         if self.c['mode'] == 'live' and not offline:
                             if driver is None:
                                 raise GateError('live_driver_required')
+                            record.pop('ui_evidence', None)
+                            self.save(state)
                             evidence = self._ui(task, record, adapter, driver)
                             self.save(state)
                         elif record.get('ui_evidence'):
@@ -192,8 +196,10 @@ class Runner:
                         self.log(task['task_id'], 'COMPLETE')
                         processed.append({'task_id': task['task_id'], 'status': 'COMPLETE',
                                           'shops': len(result['shops']), 'products': len(result['products'])})
-                    except Exception as error:
-                        code = error.code if isinstance(error, GateError) else 'operation_failed'
+                    except (Exception, KeyboardInterrupt) as error:
+                        code = error.code if isinstance(error, GateError) else 'interrupted' if isinstance(error, KeyboardInterrupt) else 'operation_failed'
+                        if code == 'interrupted':
+                            record.pop('ui_evidence', None)
                         record.update(status='REVIEW' if code in {'scroll_budget', 'pagination_gap', 'conflicting_duplicate_page'} else 'STOPPED', error=code)
                         self.save(state)
                         self.log(task['task_id'], record['status'], code)

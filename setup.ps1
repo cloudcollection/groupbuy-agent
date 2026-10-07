@@ -18,6 +18,10 @@ try {
         ./.venv/Scripts/python.exe -B -m pip install --no-cache-dir '.[windows]'
         if ($LASTEXITCODE -ne 0) { throw 'UI dependency installation failed.' }
     }
-    git config core.hooksPath .githooks
-    if ($LASTEXITCODE -ne 0) { throw 'Git hook configuration failed.' }
+    if (Test-Path -LiteralPath (Join-Path $projectRoot '.git')) {
+        git config core.hooksPath .githooks
+        if ($LASTEXITCODE -ne 0) { throw 'Git hook configuration failed.' }
+    } else {
+        Write-Host 'Source archive ready. Initialize Git and configure hooks before publication.'
+    }
 } finally { Pop-Location }

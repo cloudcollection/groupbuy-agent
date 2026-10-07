@@ -1,6 +1,31 @@
 {
-  "status": "PENDING_FINAL_SCAN",
-  "tests": {"passed": 52, "failed": 0},
-  "data_origin": "synthetic_only",
+  "status": "PASS",
+  "counts": {
+    "working_files": 53,
+    "staged_files": 53,
+    "history_commits": 1,
+    "history_blobs": 53
+  },
+  "excluded_working_files": 0,
+  "issues": [],
+  "allowlist_sha256": "4d3e1058b88f707ad93dfb15dfef28055fb126278266c729ba033f7e46a93f93",
+  "snapshot_commit": "0f92ed3c3834f2b704c4f583ec4c92729e1c7033",
+  "tests": {
+    "passed": 55,
+    "failed": 0,
+    "fixtures": "synthetic_only"
+  },
+  "cli_validation": {
+    "batch_counts": [
+      5,
+      1,
+      0
+    ],
+    "merged_tasks": 6,
+    "shop_observations": 12,
+    "product_observations": 12
+  },
+  "live_ui_verified": false,
+  "schedule_activated": false,
   "github_push": false
 }

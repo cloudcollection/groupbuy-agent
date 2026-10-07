@@ -47,6 +47,17 @@ class ParserTests(unittest.TestCase):
         with self.assertRaisesRegex(GateError, 'pagination_gap'):
             self.parse()
 
+    def test_numeric_terminal_is_not_explicit_boolean(self):
+        self.e[-1]['response']['data']['isEnd'] = 1
+        with self.assertRaisesRegex(GateError, 'missing_terminal_flag'):
+            self.parse()
+
+    def test_string_confirmation_not_true(self):
+        e = evidence(self.t)
+        e['filters_confirmed'] = 'false'
+        with self.assertRaisesRegex(GateError, 'missing_search_evidence'):
+            self.a.parse(self.t, self.e, e)
+
     def test_conflicting_duplicate(self):
         bad = deepcopy(self.e[-1])
         bad['captured_at'] = '2030-01-01T09:04:00+08:00'
@@ -257,6 +268,19 @@ class FileAndRunnerTests(unittest.TestCase):
         with FileLock(self.runner.progress_path.with_suffix('.lock')):
             with self.assertRaisesRegex(GateError, 'workspace_locked'):
                 self.runner.run()
+
+    def test_ui_interruption_cannot_reuse_prior_proof(self):
+        from tests.support import FakeDriver, frame
+        self.c['tasks'][0]['ui_profile'] = {'steps': [{'action': 'type_search', 'text': '搜索商家'}]}
+        self.save_config()
+        class InterruptedDriver(FakeDriver):
+            def wait(self, seconds):
+                raise KeyboardInterrupt
+        result = self.runner.ui_segment('DEMO-001', InterruptedDriver([frame()] * 6))
+        self.assertEqual(result['code'], 'interrupted')
+        record = self.runner.load_state()['tasks']['DEMO-001']
+        self.assertEqual(record['status'], 'STOPPED')
+        self.assertNotIn('ui_evidence', record)
 
     def test_schedule_due_and_idempotent(self):
         from datetime import datetime

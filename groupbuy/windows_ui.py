@@ -76,7 +76,8 @@ class WindowsDriver:
         x = round(sum(p[0] for p in box) / len(box))
         y = round(sum(p[1] for p in box) / len(box))
         self._hit(w, frame, x, y)
-        w.click_input(coords=(x, y))
+        from pywinauto import mouse
+        mouse.click(coords=(frame['origin'][0] + x, frame['origin'][1] + y))
         self.input_window = w.handle
 
     def _hit(self, w, frame, x, y):
@@ -99,7 +100,8 @@ class WindowsDriver:
         left, top, right, bottom = frame['list_region']
         x, y = round((left + right) / 2), round((top + bottom) / 2)
         self._hit(w, frame, x, y)
-        w.wheel_mouse_input(coords=(x, y), wheel_dist=-steps)
+        from pywinauto import mouse
+        mouse.scroll(coords=(frame['origin'][0] + x, frame['origin'][1] + y), wheel_dist=-steps)
 
     def wait(self, seconds):
         time.sleep(seconds)
