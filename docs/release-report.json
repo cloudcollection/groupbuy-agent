@@ -1,15 +1,15 @@
 {
   "status": "PASS",
   "counts": {
-    "working_files": 53,
-    "staged_files": 53,
-    "history_commits": 1,
-    "history_blobs": 53
+    "working_files": 54,
+    "staged_files": 54,
+    "history_commits": 3,
+    "history_blobs": 64
   },
   "excluded_working_files": 0,
   "issues": [],
-  "allowlist_sha256": "4d3e1058b88f707ad93dfb15dfef28055fb126278266c729ba033f7e46a93f93",
-  "snapshot_commit": "0f92ed3c3834f2b704c4f583ec4c92729e1c7033",
+  "allowlist_sha256": "3f76f5f21426f483bce6d6d0b9a33a45e1eacf1d540136eeeee0e031fc95633b",
+  "snapshot_commit": "01f1e6267e44573e522af8d4c38c5bc322eb875c",
   "tests": {
     "passed": 55,
     "failed": 0,
@@ -27,5 +27,6 @@
   },
   "live_ui_verified": false,
   "schedule_activated": false,
-  "github_push": false
+  "github_push_at_scan": false,
+  "report_scope": "local_pre_publication_scan"
 }
