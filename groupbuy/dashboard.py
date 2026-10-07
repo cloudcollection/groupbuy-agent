@@ -9,7 +9,8 @@ from copy import deepcopy
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from .agent import run_agent
-from .agent_runtime import AgentSettings, OpenAITransport
+from .agent_runtime import AgentSettings
+from .model_providers import environment_defaults, environment_key, make_transport, provider_choices, probe_model
 from .capture import capture_info
 from .common import GateError, atomic_json, load_json
 from .config import load_config
@@ -37,6 +38,8 @@ class Dashboard:
 
     def state(self):
         with self.lock:
+            defaults = environment_defaults()
+            AgentSettings(**defaults)
             runner = Runner(self.config)
             state = runner.load_state()
             rows = []
@@ -52,8 +55,13 @@ class Dashboard:
                                       'filters': self.config['tasks'][0]['filters'],
                                       'ui_profile': self.config['tasks'][0].get('ui_profile', {})},
                     'capture_enabled': self.config.get('_capture', {}).get('enabled', False),
-                    'configured_model': os.environ.get('OPENAI_MODEL', ''),
-                    'api_key_available': bool(os.environ.get('OPENAI_API_KEY'))}
+                    'configured_model': defaults['model'] or '',
+                    'configured_provider': defaults['provider'],
+                    'configured_base_url': defaults['base_url'] or '',
+                    'configured_reasoning_effort': defaults['reasoning_effort'] or '',
+                    'providers': provider_choices(),
+                    'key_available_providers': [p['id'] for p in provider_choices() if environment_key(p['id'])],
+                    'api_key_available': bool(environment_key(defaults['provider']))}
 
     def save_tasks(self, body):
         with self.lock:
@@ -114,24 +122,34 @@ class Dashboard:
         with self.lock:
             if self.running():
                 raise GateError('agent_already_running')
-            if set(body) - {'demo', 'allow_ui', 'model', 'api_key'} or any(
-                    type(body.get(k, False)) is not bool for k in ('demo', 'allow_ui')):
+            if set(body) - {'demo', 'allow_ui', 'model', 'api_key', 'provider', 'base_url', 'reasoning_effort', 'check_only'} or any(
+                    type(body.get(k, False)) is not bool for k in ('demo', 'allow_ui', 'check_only')):
                 raise GateError('invalid_ui_run')
+            for key, limit in (('model', 200), ('api_key', 4096), ('provider', 100), ('base_url', 500), ('reasoning_effort', 20)):
+                if key in body and (not isinstance(body[key], str) or len(body[key]) > limit):
+                    raise GateError('invalid_ui_run')
             demo = body.get('demo', False)
+            if demo and body.get('check_only'):
+                raise GateError('invalid_ui_run')
             c = load_config(self.root / 'examples/config.synthetic.json', self.root) if demo else self.config
-            model = body.get('model') or os.environ.get('OPENAI_MODEL') or None
-            settings = AgentSettings(model=model)
-            key = body.get('api_key') or os.environ.get('OPENAI_API_KEY', '')
-            transport = None if demo else OpenAITransport(key)
+            defaults = environment_defaults(body.get('provider'))
+            settings = AgentSettings() if demo else AgentSettings(
+                provider=defaults['provider'], model=body.get('model') or defaults['model'],
+                base_url=body.get('base_url') or defaults['base_url'],
+                reasoning_effort=body.get('reasoning_effort') or defaults['reasoning_effort'])
+            transport = None if demo else make_transport(settings, body.get('api_key') or environment_key(settings.provider))
             if not demo and not settings.model:
                 raise GateError('agent_model_required')
             self.cancel = threading.Event()
-            self.result = {'status': 'STARTING', 'backend': 'SCRIPTED_DEMO' if demo else 'OPENAI_RESPONSES'}
+            self.result = {'status': 'MODEL_CHECKING' if body.get('check_only') else 'STARTING',
+                           'backend': 'SCRIPTED_DEMO' if demo else transport.backend,
+                           'provider': 'demo' if demo else settings.provider}
 
             def job():
                 try:
-                    result = run_agent(c, settings, allow_ui=body.get('allow_ui', False), demo=demo,
-                                       transport=transport, cancel_event=self.cancel)
+                    result = (probe_model(settings, transport, self.cancel) if body.get('check_only') else
+                              run_agent(c, settings, allow_ui=body.get('allow_ui', False), demo=demo,
+                                        transport=transport, cancel_event=self.cancel))
                 except BaseException as error:
                     result = {'status': 'STOPPED', 'code': error.code if isinstance(error, GateError) else 'operation_failed'}
                 with self.lock:

@@ -264,7 +264,7 @@ class CaptureReceiver:
                 if complete and settled:
                     target = current['folder'] / 'input.har'
                     snapshot = {'log': {'version': '1.2', 'creator': {'name': 'groupbuy-local',
-                                'version': '0.3.0'}, 'entries': entries}, '_groupbuy_projected': True}
+                                'version': '0.4.0'}, 'entries': entries}, '_groupbuy_projected': True}
                     if target.exists():
                         if load_json(target) != snapshot:
                             raise GateError('capture_integrity_failure')

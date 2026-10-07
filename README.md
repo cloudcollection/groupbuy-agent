@@ -6,9 +6,9 @@
 
 面向所有使用者开放的团购数据采集工程。任何人都可以下载代码，在自己的电脑配置公开商家搜索任务、接入正常导出的本地响应，并获得可复核的精简数据。首个适配器为大众点评；其他平台尚未实现。默认不处理个人购买订单。
 
-提供确定性的 Python 工具链，以及直接调用 OpenAI Responses API 的独立 Agent。独立入口运行时不依赖 Codex 或 MCP；模型选择工具，本地代码执行正常界面流程、校验和导出。真实模型模式使用操作者自己的 API Key；纯工具模式和虚构演示不需要密钥。请求层和核心均只用标准库，Windows UI 依赖可选安装。
+提供确定性的 Python 工具链，以及直接调用多家模型公开 API 的独立 Agent。独立入口运行时不依赖 Codex 或 MCP；模型选择工具，本地代码执行正常界面流程、校验和导出。真实模型模式使用操作者自己的 API Key；纯工具模式和虚构演示不需要密钥。请求层和核心均只用标准库，Windows UI 依赖可选安装。
 
-**当前状态：0.3.0 / 实验阶段。** CLI 与本地网页共用独立 Agent；新增 Reqable 官方报告服务器接收器，首次配置后自动接收并保存脱敏 HAR。已通过虚构数据、本机 HTTP 与模拟界面的闭环验证。真实模型 API、本机小程序/Reqable 联动及其他电脑仍待验证。见 [CLI / UI 入门教程](docs/cli-ui-guide.md) 和 [验证状态](docs/validation.md)。
+**当前状态：0.4.0 / 实验阶段。** CLI 与本地网页共用独立 Agent；新增多服务商配置、Codex 同类 Responses 流式协议与 API 工具调用测试。通过 Reqable 官方报告服务器接收器，首次配置后自动接收并保存脱敏 HAR。已通过虚构数据、本机 HTTP 与模拟界面的闭环验证。真实模型 API、本机小程序/Reqable 联动及其他电脑仍待验证。见 [CLI / UI 入门教程](docs/cli-ui-guide.md) 和 [验证状态](docs/validation.md)。
 
 ## 网页启动：配置、运行、查看进度
 
@@ -19,7 +19,7 @@
 ./start-ui.ps1
 ```
 
-打开 `http://127.0.0.1:8787`，先点击「离线演示」体验无密钥、无联网的虚构流程。实际采集时保存任务、获取本机上传地址，在 Reqable「工具 → 报告服务器」配置一次目标平台规则，再填写模型与 API Key、允许界面操作并启动。每人使用自己的平台登录状态和 API Key。详细步骤见 [CLI / UI 教程](docs/cli-ui-guide.md)。
+打开 `http://127.0.0.1:8787`，先点击「离线演示」体验无密钥、无联网的虚构流程。实际采集时保存任务、获取本机上传地址，在 Reqable「工具 → 报告服务器」配置一次目标平台规则，再选择 API 服务商、填写模型与 API Key、允许界面操作并启动。每人使用自己的平台登录状态和 API Key。详细步骤见 [CLI / UI 教程](docs/cli-ui-guide.md)。
 
 网页和 CLI 使用同一配置时会继续同一份进度；同一时间运行一个入口。网页不需要 Codex 或 MCP，密钥只用于运行内存。页面标签与窗口配置需要在每台电脑校准。
 
@@ -49,7 +49,9 @@ python -B -m groupbuy --config config.local.json agent --allow-ui
 
 | 工程能力 | 当前实现 |
 |---|---|
-| 独立模型循环 | 官方 Responses API、严格工具契约、串行回传、轮数与超时限制 |
+| 独立模型循环 | Responses / Chat Completions / Messages，串行工具校验、轮数与超时限制 |
+| 模型服务商 | OpenAI、DeepSeek、通义千问、Kimi、Claude、自定义 Chat/Responses 兼容 API；真实 Key 联调仍待验证 |
+| Codex 同类协议 | Responses SSE、显式消息块、reasoning.effort、encrypted_content 回传；未复用 Codex 登录态 |
 | CLI / 网页 | 共用 Agent 与进度；本机 HTTP、CSRF、开始/停止/重试 |
 | 自动 HAR | Reqable 官方报告服务器、本机接收、任务时间窗、落盘前公开字段投影 |
 | 平台隔离 | `PlatformAdapter` 协议，当前仅注册 `dianping` |
@@ -59,11 +61,27 @@ python -B -m groupbuy --config config.local.json agent --allow-ui
 | 结果恢复 | 进程锁、原子 JSON、逐任务清单、文件 SHA-256 |
 | 发布检查 | 精确白名单、提交前钩子、工作区/暂存区/全部可达历史扫描 |
 
+## 其他模型与 Codex 格式中转
+
+网页选择 DeepSeek、通义千问、Kimi 或 Claude，填该服务商的模型和 Key。仅提供 Chat Completions 的服务选「其他 · OpenAI 兼容 API」；要求 Codex 格式的网关选「Codex / Responses 兼容 API」，填 API 基础地址、模型与推理强度。先点击「测试 API 连接」验证一次工具调用，再启动采集；连接测试可能产生 API 费用，不操作小程序。
+
+Responses 兼容请求使用 `stream=true`、`store=false`、显式 developer/user 消息、`reasoning.effort` 与加密推理回传，读取完整 SSE 终止事件后才执行工具。参照 [Codex 公开请求结构](https://github.com/openai/codex/blob/main/codex-rs/codex-api/src/common.rs) 独立实现；不伪装客户端身份、不读取 Codex 的凭据。
+
+CLI 同样支持服务商、基址和推理强度，密钥从对应环境变量读取：
+
+```powershell
+# 先按多模型指南以隐藏输入设置 GROUPBUY_API_KEY
+./.venv/Scripts/python.exe -B -m groupbuy model-check --provider responses_compatible --base-url https://api.example.invalid/v1 --model gpt-6.1-sol --reasoning-effort medium
+./.venv/Scripts/python.exe -B -m groupbuy --config config.local.json agent --provider responses_compatible --base-url https://api.example.invalid/v1 --model gpt-6.1-sol --reasoning-effort medium --allow-ui
+```
+
+上述地址是虚构示例。协议已用虚构响应与本机 HTTP 验证；真实账号权限、模型工具能力和中转兼容性仍需验证。详见 [多模型 API 指南](docs/model-providers.md)。
+
 ## 系统架构
 
 ```mermaid
 flowchart TD
-    CLI[CLI] --> A[独立 Agent / OpenAI Responses API]
+    CLI[CLI] --> A[独立 Agent / 多服务商 API]
     WEB[本地网页] --> A
     A --> F[受限本地工具]
     F --> R
@@ -86,7 +104,8 @@ flowchart TD
 groupbuy/
 ├── config.py          # 配置校验、字段语义与任务哈希
 ├── agent.py           # 独立入口、脚本演示与前台定时
-├── agent_runtime.py   # 模型请求、多轮工具回传和预算
+├── agent_runtime.py   # 通用工具循环、多轮回传和预算
+├── model_providers.py # Chat/Responses/Messages 适配及连接探测
 ├── agent_tools.py     # 状态摘要、环境检查、界面/解析工具
 ├── dashboard.py       # 本机网页接口与同一个 Agent
 ├── web/               # 无外部资源的网页界面

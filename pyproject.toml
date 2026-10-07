@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "groupbuy-agent"
-version = "0.3.0"
+version = "0.4.0"
 description = "Standalone AI tool loop and auditable public group-buying collection pipeline"
 requires-python = ">=3.10"
 license = {text = "GPL-3.0-only"}

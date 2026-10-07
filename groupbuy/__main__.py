@@ -23,16 +23,34 @@ def main():
     retry = sub.add_parser('retry')
     retry.add_argument('--task', required=True)
     sub.add_parser('schedule')
-    a = sub.add_parser('agent', help='Independent OpenAI tool loop; no Codex required')
+    a = sub.add_parser('agent', help='Independent multi-provider tool loop; no Codex required')
     a.add_argument('--settings', default='examples/agent.example.json')
+    a.add_argument('--provider', help='openai, deepseek, qwen, kimi, anthropic, openai_compatible, responses_compatible')
+    a.add_argument('--model', help='Model available in the selected provider account')
+    a.add_argument('--base-url', help='API base URL, without endpoint suffix; never embed credentials')
+    a.add_argument('--reasoning-effort', choices=['none', 'minimal', 'low', 'medium', 'high', 'xhigh'])
     a.add_argument('--allow-ui', action='store_true')
     a.add_argument('--demo', action='store_true', help='Scripted synthetic demo; no API calls')
     a.add_argument('--schedule', action='store_true', help='Foreground Agent schedule, disabled by default')
+    probe = sub.add_parser('model-check', help='One API tool-call probe; no collection or UI actions')
+    probe.add_argument('--settings', default='examples/agent.example.json')
+    probe.add_argument('--provider')
+    probe.add_argument('--model')
+    probe.add_argument('--base-url')
+    probe.add_argument('--reasoning-effort', choices=['none', 'minimal', 'low', 'medium', 'high', 'xhigh'])
     m = sub.add_parser('merge')
     m.add_argument('--inputs', nargs='+', required=True)
     m.add_argument('--output', required=True)
     args = p.parse_args()
     try:
+        if args.command == 'model-check':
+            from .agent_runtime import load_settings
+            from .model_providers import make_transport, probe_model
+            settings = load_settings(args.settings, provider=args.provider, model=args.model,
+                                     base_url=args.base_url, reasoning_effort=args.reasoning_effort)
+            result = probe_model(settings, make_transport(settings))
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            return 0 if result['status'] == 'MODEL_READY' else 2
         c = load_config(args.config)
         runner = Runner(c)
         if args.command == 'plan':
@@ -59,7 +77,8 @@ def main():
         elif args.command == 'agent':
             from .agent import run_agent, serve_agent
             from .agent_runtime import load_settings
-            settings = load_settings(args.settings)
+            settings = load_settings(args.settings, provider=args.provider, model=args.model,
+                                     base_url=args.base_url, reasoning_effort=args.reasoning_effort)
             if args.demo and args.schedule:
                 raise GateError('demo_schedule_rejected')
             result = (serve_agent(c, settings, allow_ui=args.allow_ui) if args.schedule else

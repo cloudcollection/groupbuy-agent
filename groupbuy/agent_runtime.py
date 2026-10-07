@@ -1,4 +1,4 @@
-"""Independent Responses API loop; no Codex process or arbitrary shell tools."""
+"""Independent tool loop; providers normalize replies before host validation."""
 import copy
 import json
 import math
@@ -27,6 +27,9 @@ Finish when the batch is complete. Your text cannot mark any task complete.
 @dataclass(frozen=True)
 class AgentSettings:
     model: str | None = None
+    provider: str = 'openai'
+    base_url: str | None = None
+    reasoning_effort: str | None = None
     max_rounds: int = 48
     max_output_tokens: int = 2048
     timeout_seconds: float = 60
@@ -34,6 +37,12 @@ class AgentSettings:
     max_ui_segments: int = 3
 
     def __post_init__(self):
+        from .model_providers import validate_provider
+        validate_provider(self.provider, self.base_url)
+        if self.reasoning_effort is not None and (not isinstance(self.reasoning_effort, str)
+                or self.reasoning_effort not in {'none', 'minimal', 'low', 'medium', 'high', 'xhigh'}
+                or self.provider not in {'openai', 'responses_compatible'}):
+            raise GateError('invalid_reasoning_effort')
         for name, lo, hi in [('max_rounds', 1, 128), ('max_output_tokens', 256, 32768),
                              ('max_ui_segments', 1, 10)]:
             n = getattr(self, name)
@@ -48,7 +57,7 @@ class AgentSettings:
             raise GateError('invalid_agent_model')
 
 
-def load_settings(path):
+def load_settings(path, *, provider=None, model=None, base_url=None, reasoning_effort=None):
     raw = load_json(path)
     if not isinstance(raw, dict) or raw.get('version') != 1:
         raise GateError('invalid_agent_settings')
@@ -56,8 +65,13 @@ def load_settings(path):
     if set(raw) - allowed:
         raise GateError('invalid_agent_settings')
     values = {k: v for k, v in raw.items() if k != 'version'}
-    if not values.get('model'):
-        values['model'] = os.environ.get('OPENAI_MODEL') or None
+    values.update({k: v for k, v in {'provider': provider, 'model': model, 'base_url': base_url,
+                                   'reasoning_effort': reasoning_effort}.items() if v is not None})
+    from .model_providers import environment_defaults
+    defaults = environment_defaults(values.get('provider'))
+    for key in ('provider', 'model', 'base_url', 'reasoning_effort'):
+        if not values.get(key):
+            values[key] = defaults[key]
     return AgentSettings(**values)
 
 
@@ -69,6 +83,9 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 @dataclass(repr=False)
 class OpenAITransport:
     api_key: str = field(repr=False)
+    reasoning_effort: str | None = None
+    backend = 'OPENAI_RESPONSES'
+    provider = 'openai'
 
     def __post_init__(self):
         if not isinstance(self.api_key, str) or not self.api_key.strip():
@@ -81,41 +98,58 @@ class OpenAITransport:
         return cls(os.environ.get('OPENAI_API_KEY', ''))
 
     def create(self, payload, *, timeout_seconds):
-        body = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode('utf-8')
-        if len(body) > 8 * 1024 * 1024:
-            raise GateError('model_context_limit')
-        request = urllib.request.Request('https://api.openai.com/v1/responses', data=body,
-                                         headers={'Authorization': 'Bearer ' + self.api_key,
-                                                  'Content-Type': 'application/json'}, method='POST')
-        # Endpoint is fixed. No redirects, request capture, private API or global proxy changes.
-        # Never inherit the capture/system proxy. Optional model proxy is separate.
-        proxy_url = os.environ.get('OPENAI_PROXY_URL', '')
-        if proxy_url:
-            from urllib.parse import urlsplit
-            proxy = urlsplit(proxy_url)
-            if proxy.scheme not in {'http', 'https'} or not proxy.hostname or proxy.username or proxy.password:
-                raise GateError('invalid_model_proxy')
+        payload = copy.deepcopy(payload)
+        payload['include'] = ['reasoning.encrypted_content']
+        if self.reasoning_effort:
+            payload['reasoning'] = {'effort': self.reasoning_effort}
+        return post_json('https://api.openai.com/v1/responses', payload,
+                         {'Authorization': 'Bearer ' + self.api_key}, timeout_seconds,
+                         os.environ.get('GROUPBUY_MODEL_PROXY_URL') or os.environ.get('OPENAI_PROXY_URL', ''))
+
+
+def post_json(url, payload, headers, timeout_seconds, proxy_url='', *, stream=False):
+    """Bounded JSON HTTP; no system proxy, redirects, response logging or retries."""
+    from urllib.parse import urlsplit
+    from . import __version__
+    body = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode('utf-8')
+    if len(body) > 8 * 1024 * 1024:
+        raise GateError('model_context_limit')
+    if proxy_url:
+        proxy = urlsplit(proxy_url)
+        if (proxy.scheme not in {'http', 'https'} or not proxy.hostname or proxy.username or proxy.password
+                or proxy.query or proxy.fragment or any(c.isspace() for c in proxy_url)):
+            raise GateError('invalid_model_proxy')
+    request = urllib.request.Request(url, data=body,
+                                     headers={**headers, 'Content-Type': 'application/json',
+                                              'User-Agent': 'groupbuy-agent/' + __version__}, method='POST')
+    scheme = urlsplit(url).scheme
+    try:
         opener = urllib.request.build_opener(urllib.request.ProxyHandler(
-            {'https': proxy_url} if proxy_url else {}), NoRedirect())
-        try:
-            with opener.open(request, timeout=timeout_seconds) as response:
-                data = response.read(4 * 1024 * 1024 + 1)
-        except urllib.error.HTTPError as error:
-            error.close()  # Do not log error bodies, headers, requests or credentials.
-            code = ('model_auth_failed' if error.code in (401, 403) else
-                    'model_rate_limited' if error.code == 429 else 'model_http_failed')
-            raise GateError(code) from None
-        except (urllib.error.URLError, TimeoutError, OSError):
-            raise GateError('model_connection_failed') from None
-        if len(data) > 4 * 1024 * 1024:
-            raise GateError('model_response_too_large')
-        try:
-            result = json.loads(data)
-        except (ValueError, UnicodeError):
-            raise GateError('invalid_model_response') from None
-        if not isinstance(result, dict):
-            raise GateError('invalid_model_response')
-        return result
+            {scheme: proxy_url} if proxy_url else {}), NoRedirect())
+        with opener.open(request, timeout=timeout_seconds) as response:
+            if stream and str(response.getheader('Content-Type', '')).split(';')[0].strip() == 'text/event-stream':
+                from .model_providers import read_responses_stream
+                return read_responses_stream(response, timeout_seconds)
+            data = response.read(4 * 1024 * 1024 + 1)
+    except urllib.error.HTTPError as error:
+        error.close()
+        code = ('model_auth_failed' if error.code in (401, 403) else
+                'model_rate_limited' if error.code == 429 else
+                'model_request_rejected' if error.code in (400, 422) else
+                'model_endpoint_not_found' if error.code == 404 else
+                'model_service_unavailable' if error.code in (502, 503, 504) else 'model_http_failed')
+        raise GateError(code) from None
+    except (urllib.error.URLError, TimeoutError, OSError):
+        raise GateError('model_connection_failed') from None
+    if len(data) > 4 * 1024 * 1024:
+        raise GateError('model_response_too_large')
+    try:
+        result = json.loads(data)
+    except (ValueError, UnicodeError):
+        raise GateError('invalid_model_response') from None
+    if not isinstance(result, dict):
+        raise GateError('invalid_model_response')
+    return result
 
 
 HALTS = {'WAITING_INPUT', 'UI_REQUIRED', 'UI_UNAVAILABLE', 'ATTENTION_REQUIRED'}
@@ -133,7 +167,8 @@ def run_loop(settings, tools, transport, *, demo=False, on_event=None, cancel_ev
     def report(status, code=None):
         snapshot = tools.snapshot()
         result = {'schema': 'groupbuy.agent-run.v1',
-                  'backend': 'SCRIPTED_DEMO' if demo else 'OPENAI_RESPONSES',
+                  'backend': 'SCRIPTED_DEMO' if demo else getattr(transport, 'backend', 'OPENAI_RESPONSES'),
+                  'provider': 'demo' if demo else settings.provider,
                   'status': status, 'rounds': rounds, 'tool_calls': calls,
                   'reported_tokens': tokens, 'batch': snapshot}
         if code:

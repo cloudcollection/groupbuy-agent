@@ -32,3 +32,5 @@ table{font-size:13px}th{font-size:12px}.task-status,.har-state{font-size:11px}.r
 @media(max-width:1150px) and (min-width:761px){.sidebar{width:190px}main{margin-left:190px}.brand{gap:9px}.brand strong{font-size:14px}.brand small{font-size:8px;letter-spacing:.65px}.brand-mark{width:36px;height:36px}#message{left:calc(50% + 95px)}}
 @media(max-width:760px){.sidebar{width:auto}main{margin:0}.brand strong{font-size:14px}.brand-mark{width:34px;height:34px;border-radius:10px}.brand-mark svg{width:27px;height:27px}.sidebar nav a{font-size:12px}h1{font-size:32px;font-weight:650}header p{font-size:14px}.overview-item strong{font-size:27px}.overview-item small{font-size:12px}#message{left:50%}}
 @media(max-width:390px){.brand{gap:8px}.brand strong{font-size:13px}.sidebar nav a{font-size:10px}}
+
+select{display:block;width:100%;margin-top:8px;padding:11px 12px;background:#fffefa;color:#34312c;border:1px solid #dedbd3;border-radius:8px;font:inherit;font-size:14px;line-height:1.5;min-height:45px}select:focus{outline:none;border-color:#b77256;box-shadow:0 0 0 3px #b7725614}#base-url{font-size:13px;overflow:hidden;text-overflow:ellipsis}

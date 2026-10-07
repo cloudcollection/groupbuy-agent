@@ -5,7 +5,8 @@ import uuid
 from contextlib import nullcontext
 from copy import deepcopy
 from datetime import datetime, timezone
-from .agent_runtime import AgentSettings, OpenAITransport, run_loop
+from .agent_runtime import AgentSettings, run_loop
+from .model_providers import make_transport
 from .agent_tools import CollectionTools
 from .common import FileLock, GateError, atomic_json, load_json, path_from, utcnow
 from .runner import Runner
@@ -57,7 +58,7 @@ def run_agent(config, settings, *, allow_ui=False, demo=False, transport=None, d
     c = demo_config(config) if demo else config
     if not demo and not settings.model:
         raise GateError('agent_model_required')
-    transport = transport or (ScriptedDemoTransport() if demo else OpenAITransport.from_environment())
+    transport = transport or (ScriptedDemoTransport() if demo else make_transport(settings))
     runner = Runner(c)
     # Serialise Agent sessions; each deterministic operation also takes the original progress lock.
     with FileLock(runner.progress_path.with_suffix('.agent.lock')):
@@ -101,7 +102,7 @@ def serve_agent(config, settings, *, allow_ui=False):
         raise GateError('schedule_disabled')
     if not settings.model:
         raise GateError('agent_model_required')
-    transport = OpenAITransport.from_environment()
+    transport = make_transport(settings)
     while True:
         result = tick_agent(config, settings, datetime.now(timezone.utc),
                             allow_ui=allow_ui, transport=transport)
