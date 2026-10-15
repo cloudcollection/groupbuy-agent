@@ -13,6 +13,8 @@ def main():
     sub.add_parser('plan')
     sub.add_parser('doctor')
     sub.add_parser('capture-init', help='Prepare the private loopback URL for Reqable report server')
+    capture_probe = sub.add_parser('capture-probe', help='Key-free report connectivity test; no UI or payload storage')
+    capture_probe.add_argument('--seconds', type=float, default=30)
     dashboard = sub.add_parser('dashboard', help='Local web UI; CLI and UI share the same Agent')
     dashboard.add_argument('--port', type=int, default=8787)
     r = sub.add_parser('run')
@@ -63,11 +65,11 @@ def main():
             serve_dashboard(c, args.port)
             return 0
         elif args.command == 'doctor':
-            import importlib.util
-            import os
-            result = {'platforms': ['dianping'], 'core_ready': True,
-                      'live_environment': os.name == 'nt' and all(importlib.util.find_spec(x) for x in ('pywinauto', 'rapidocr_onnxruntime', 'psutil')),
-                      'live_verified': False, 'schedule_enabled': c['schedule']['enabled']}
+            from .diagnostics import doctor
+            result = doctor(c)
+        elif args.command == 'capture-probe':
+            from .capture import probe_capture
+            result = probe_capture(c, args.seconds)
         elif args.command == 'merge':
             from .exporter import merge
             from .common import path_from

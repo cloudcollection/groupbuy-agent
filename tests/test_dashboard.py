@@ -29,7 +29,64 @@ class DashboardTests(unittest.TestCase):
         self.ui = Dashboard(self.c)
 
     def save(self):
-        return self.ui.save_tasks({'tasks': [{'city': '示例市', 'search_term': '虚构广场'}]})
+        return self.ui.save_tasks({'tasks': [{'city': '示例市', 'search_term': '虚构广场'}],
+                                   'ui_profile': {'calibration_required': False}})
+
+    def test_offline_landing_page_has_editable_live_recipe_defaults(self):
+        profile = self.ui.state()['form_defaults']['ui_profile']
+        self.assertTrue(profile['calibration_required'])
+        self.assertTrue(any(step['action'] == 'click' for step in profile['steps']))
+        self.ui.save_tasks({'tasks': [{'city': '示例市', 'search_term': '虚构广场'}],
+                            'ui_profile': {'filter_steps': [s['text'] for s in profile['steps'] if s['action'] == 'click']}})
+        self.assertEqual(self.ui.state()['tasks'][0]['status'], 'PENDING')
+
+    def test_new_live_tasks_require_calibration_unless_explicitly_acknowledged(self):
+        self.ui.save_tasks({'tasks': [{'city': '示例市', 'search_term': '虚构广场'}]})
+        self.assertTrue(self.ui.state()['calibration_required'])
+        with patch('groupbuy.dashboard.make_transport') as model:
+            with self.assertRaisesRegex(GateError, 'ui_calibration_required'):
+                self.ui.start({'model': 'fictional-model', 'api_key': 'fictional-key'})
+            model.assert_not_called()
+
+    def test_capture_probe_needs_no_key_and_leaves_task_pending(self):
+        self.save()
+        self.ui.config['_capture']['port'] = free_port()
+        with patch('groupbuy.dashboard.make_transport') as model:
+            self.ui.start_capture_probe({'seconds': .1})
+            self.ui.worker.join(timeout=5)
+            model.assert_not_called()
+        self.assertEqual(self.ui.result['code'], 'capture_no_reports')
+        self.assertEqual(self.ui.state()['tasks'][0]['status'], 'PENDING')
+        self.assertFalse(self.ui.capture_status['listening'])
+
+    def test_search_input_mode_is_saved_and_validated(self):
+        body = {'tasks': [{'city': '示例市', 'search_term': '虚构广场'}],
+                'ui_profile': {'search_input_mode': 'outlined', 'search_label': '搜索'}}
+        self.ui.save_tasks(body)
+        self.assertEqual(self.ui.config['tasks'][0]['ui_profile']['search_input_mode'], 'outlined')
+        self.assertEqual(self.ui.config['tasks'][0]['ui_profile']['steps'][0]['text'], '搜索')
+        body['ui_profile']['search_input_mode'] = 'guess'
+        with self.assertRaisesRegex(GateError, 'invalid_ui_tasks'):
+            self.ui.save_tasks(body)
+
+    def test_filter_menu_recipe_is_configurable_and_preserved(self):
+        labels = ['全部分类', '美食', '全部美食', '全城', '虚构商圈']
+        body = {'tasks': [{'city': '示例市', 'search_term': '虚构广场'}],
+                'ui_profile': {'filter_steps': labels}}
+        self.ui.save_tasks(body)
+        self.assertEqual([s['text'] for s in self.ui.config['tasks'][0]['ui_profile']['steps'][1:]], labels)
+        for invalid in ([], [''], ['a'] * 21, [False]):
+            body['ui_profile']['filter_steps'] = invalid
+            with self.assertRaisesRegex(GateError, 'invalid_ui_tasks'):
+                self.ui.save_tasks(body)
+
+    def test_uncalibrated_task_is_blocked_before_model_request(self):
+        self.save()
+        self.ui.config['tasks'][0]['ui_profile']['calibration_required'] = True
+        with patch('groupbuy.dashboard.make_transport') as factory:
+            with self.assertRaisesRegex(GateError, 'ui_calibration_required'):
+                self.ui.start({'model': 'fictional-model', 'api_key': 'fictional-key', 'allow_ui': True})
+            factory.assert_not_called()
 
     def test_save_private_configuration_restart_and_cli_share_progress(self):
         result = self.save()

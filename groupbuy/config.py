@@ -50,6 +50,10 @@ def validate_task(t):
     for k in ('path', 'evidence'):
         if not isinstance(t['input'].get(k), str):
             raise GateError('missing_input_path')
+    if t.get('ui_profile', {}).get('search_input_mode', 'text') not in {'text', 'outlined'}:
+        raise GateError('unsupported_search_input_mode')
+    if type(t.get('ui_profile', {}).get('calibration_required', False)) is not bool:
+        raise GateError('invalid_ui_profile')
 
 
 def load_config(path, project_root=None):

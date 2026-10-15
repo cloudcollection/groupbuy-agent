@@ -173,6 +173,8 @@ def run_loop(settings, tools, transport, *, demo=False, on_event=None, cancel_ev
                   'reported_tokens': tokens, 'batch': snapshot}
         if code:
             result['code'] = code
+            from .diagnostics import next_action
+            result['next_action'] = next_action(code)
         return result
 
     try:
@@ -237,7 +239,12 @@ def run_loop(settings, tools, transport, *, demo=False, on_event=None, cancel_ev
                 result = {'ok': False, 'code': 'invalid_tool_arguments'}
             else:
                 calls += 1
+                if on_event:
+                    on_event({'event': 'tool_started', 'tool': name if name in {t['name'] for t in tools.schemas()} else 'unknown', 'call': calls})
                 result = tools.execute(name, args)
+                if on_event:
+                    on_event({'event': 'tool_finished', 'call': calls, 'ok': bool(result.get('ok')),
+                              'status': tools.snapshot()['status']})
             history.append({'type': 'function_call_output', 'call_id': ident,
                             'output': json.dumps(result, ensure_ascii=False, allow_nan=False)})
             snapshot = tools.snapshot()

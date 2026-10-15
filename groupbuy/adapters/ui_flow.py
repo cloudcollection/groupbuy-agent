@@ -10,6 +10,7 @@ RISK = ('验证码', '验证身份', '访问受限', '操作频繁', '请登录'
 
 
 def check_frame(frame, expected=None):
+    frame['risk_markers'] = RISK
     if not frame.get('foreground'):
         raise GateError('foreground_changed')
     if any(word in frame['text'] for word in RISK):
@@ -42,6 +43,8 @@ def collect(task, runtime, driver, prior=None):
     profile = task.get('ui_profile')
     if not profile:
         raise GateError('ui_profile_required')
+    if profile.get('calibration_required'):
+        raise GateError('ui_calibration_required')
     wait = lambda: driver.wait(random.uniform(*runtime['wait_seconds']))
     first = driver.observe(profile)
     check_frame(first)
@@ -58,16 +61,31 @@ def collect(task, runtime, driver, prior=None):
         steps = profile.get('steps', [])
         if not steps or not any(s.get('action') == 'type_search' for s in steps):
             raise GateError('missing_search_recipe')
-        for step in steps:
-            frame = driver.observe(profile)
-            check_frame(frame, first)
-            if step['action'] == 'click':
-                driver.click_observed(step['text'], frame)
-            elif step['action'] == 'type_search':
-                driver.click_observed(step['text'], frame)
-                driver.type_search(task['search_term'])
-            else:
-                raise GateError('unsupported_ui_action')
+        for index, step in enumerate(steps, 1):
+            for attempt in range(runtime['retry_limit'] + 1):
+                frame = driver.observe(profile)
+                check_frame(frame, first)
+                try:
+                    if step['action'] == 'click':
+                        driver.click_observed(step['text'], frame)
+                    elif step['action'] == 'type_search':
+                        if profile.get('search_input_mode', 'text') == 'outlined':
+                            driver.focus_search_observed(step['text'], frame)
+                            wait()
+                        else:
+                            driver.click_observed(step['text'], frame)
+                        driver.type_search(task['search_term'])
+                    else:
+                        raise GateError('unsupported_ui_action')
+                    break
+                except GateError as error:
+                    # No input occurred when the driver rejects this stale frame.
+                    # Re-observe and re-check risk/window identity before retrying.
+                    if error.code == 'screen_changed_before_action' and attempt < runtime['retry_limit']:
+                        wait()
+                        continue
+                    error.ui_diagnostic = {'step': index, 'action': step['action']}
+                    raise
             wait()
         frame = driver.observe(profile)
         check_frame(frame, first)

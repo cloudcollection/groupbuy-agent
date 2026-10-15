@@ -78,6 +78,8 @@ class CollectionTools:
                    r['status'] == 'REVIEW' and r.get('error') != 'scroll_budget']
         if self.fatal_code:
             status, code = 'ATTENTION_REQUIRED', self.fatal_code
+        elif any(t.get('ui_profile', {}).get('calibration_required') for t in self.tasks.values()):
+            status, code = 'ATTENTION_REQUIRED', 'ui_calibration_required'
         elif blocked:
             status, code = 'ATTENTION_REQUIRED', 'manual_retry_required'
         elif any(r['status'] == 'REVIEW' and r.get('error') == 'scroll_budget'

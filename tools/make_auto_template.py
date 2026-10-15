@@ -10,6 +10,12 @@ value['capture'] = {'enabled': True, 'port': 8765,
                     'storage_dir': 'runtime/capture', 'settle_seconds': 2, 'timeout_seconds': 30}
 sample = value['tasks'][0]
 sample['ui_profile']['process_names'].append('WeChatAppEx.exe')
+sample['ui_profile']['calibration_required'] = True
+sample['filters']['range_text'] = '按页面填写'
+sample['ui_profile']['steps'] = [
+    {'action': 'type_search', 'text': '搜索商家'},
+    *({'action': 'click', 'text': label} for label in
+      ('全部分类', '美食', '全部美食', '全城', '附近', '按页面填写'))]
 value['tasks'] = []
 for n in range(1, 6):
     task = deepcopy(sample)

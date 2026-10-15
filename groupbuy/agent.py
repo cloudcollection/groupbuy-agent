@@ -52,7 +52,7 @@ def demo_config(config):
     return c
 
 
-def run_agent(config, settings, *, allow_ui=False, demo=False, transport=None, driver_factory=None, cancel_event=None):
+def run_agent(config, settings, *, allow_ui=False, demo=False, transport=None, driver_factory=None, cancel_event=None, on_event=None):
     if demo and allow_ui:
         raise GateError('demo_ui_rejected')
     c = demo_config(config) if demo else config
@@ -63,11 +63,16 @@ def run_agent(config, settings, *, allow_ui=False, demo=False, transport=None, d
     # Serialise Agent sessions; each deterministic operation also takes the original progress lock.
     with FileLock(runner.progress_path.with_suffix('.agent.lock')):
         from .capture import CaptureReceiver
-        context = CaptureReceiver(c, cancel_event=cancel_event) if c.get('_capture', {}).get('enabled') else nullcontext(None)
+        callback = (lambda state: on_event({'event': 'capture_status', 'capture': state})) if on_event else None
+        context = CaptureReceiver(c, cancel_event=cancel_event, on_status=callback) if c.get('_capture', {}).get('enabled') else nullcontext(None)
         with context as capture:
             tools = CollectionTools(runner, settings, allow_ui=allow_ui, driver_factory=driver_factory,
                                     capture=capture, cancel_event=cancel_event)
-            result = run_loop(settings, tools, transport, demo=demo, cancel_event=cancel_event)
+            if not demo:
+                tools.execute('check_environment', {})
+            result = run_loop(settings, tools, transport, demo=demo, cancel_event=cancel_event, on_event=on_event)
+        if capture is not None:
+            result['capture'] = capture.status()
         result['at'] = utcnow()
         report_path = runner.output / 'agent-runs' / (uuid.uuid4().hex + '.json')
         atomic_json(report_path, result)

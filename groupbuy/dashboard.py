@@ -32,6 +32,20 @@ class Dashboard:
         self.worker = None
         self.cancel = threading.Event()
         self.result = None
+        self.events = []
+        self.capture_status = None
+        self.operation = None
+
+    def record_event(self, event):
+        with self.lock:
+            if event.get('event') == 'capture_status':
+                allowed = {'listening', 'armed', 'posts_received', 'valid_reports', 'accepted_entries',
+                           'ignored_entries', 'rejected_reports', 'last_error'}
+                self.capture_status = {k: v for k, v in event['capture'].items() if k in allowed}
+            else:
+                allowed = {'event', 'round', 'call', 'tool', 'ok', 'status'}
+                self.events.append({k: v for k, v in event.items() if k in allowed})
+                self.events = self.events[-32:]
 
     def running(self):
         return bool(self.worker and self.worker.is_alive())
@@ -48,13 +62,18 @@ class Dashboard:
                 rows.append({'task_id': task['task_id'], 'search_term': task['search_term'],
                              'city': task['target_location']['city'], 'status': record['status'],
                              'code': record.get('error'), 'har_ready': bool(record.get('auto_har'))})
+                if record.get('ui_diagnostic'):
+                    rows[-1]['ui_diagnostic'] = record['ui_diagnostic']
             return {'running': self.running(), 'tasks': rows, 'result': self.result,
+                    'events': list(self.events), 'capture_status': self.capture_status, 'operation': self.operation,
                     'output_dir': str(runner.output), 'mode': self.config['mode'],
                     'config_path': str(self.root / load_json(self.pointer)['config_path']) if self.pointer.exists() else '',
                     'form_defaults': {'batch_size': self.config['runtime']['batch_size'],
                                       'filters': self.config['tasks'][0]['filters'],
-                                      'ui_profile': self.config['tasks'][0].get('ui_profile', {})},
+                                      'ui_profile': self.config['tasks'][0].get('ui_profile') or
+                                          load_json(Path(__file__).resolve().parents[1] / 'examples/config.auto-template.json')['tasks'][0]['ui_profile']},
                     'capture_enabled': self.config.get('_capture', {}).get('enabled', False),
+                    'calibration_required': any(t.get('ui_profile', {}).get('calibration_required', False) for t in self.config['tasks']),
                     'configured_model': defaults['model'] or '',
                     'configured_provider': defaults['provider'],
                     'configured_base_url': defaults['base_url'] or '',
@@ -78,7 +97,15 @@ class Dashboard:
             base = 'runtime/ui-workspaces/' + uuid.uuid4().hex
             template = load_json(self.root / 'examples/config.auto-template.json')
             profile = body.get('ui_profile', {})
-            if not isinstance(profile, dict) or set(profile) - {'window_title_regex', 'search_label', 'list_anchor', 'process_names'}:
+            if not isinstance(profile, dict) or set(profile) - {'window_title_regex', 'search_label', 'list_anchor', 'process_names', 'search_input_mode', 'filter_steps', 'calibration_required'}:
+                raise GateError('invalid_ui_tasks')
+            if type(profile.get('calibration_required', True)) is not bool:
+                raise GateError('invalid_ui_tasks')
+            if profile.get('search_input_mode', 'text') not in {'text', 'outlined'}:
+                raise GateError('invalid_ui_tasks')
+            filter_steps = profile.get('filter_steps')
+            if filter_steps is not None and (not isinstance(filter_steps, list) or not 1 <= len(filter_steps) <= 20
+                    or any(not isinstance(text, str) or not text.strip() or len(text) > 200 for text in filter_steps)):
                 raise GateError('invalid_ui_tasks')
             for key in ('window_title_regex', 'search_label', 'list_anchor'):
                 if key in profile and (not isinstance(profile[key], str) or not 1 <= len(profile[key]) <= 200):
@@ -103,11 +130,16 @@ class Dashboard:
                          target_location={'city': row['city'].strip(), 'center_name': row['search_term'].strip()},
                          filters={'category': body.get('category', '美食'), 'range_text': body.get('range_text', '3km')})
                 t['input'].update(path=base + '/capture/' + ident, evidence=base + '/manual-evidence/' + ident + '.json')
-                t['ui_profile']['steps'][1]['text'] = t['filters']['category']
-                t['ui_profile']['steps'][2]['text'] = t['filters']['range_text']
+                t['ui_profile']['steps'] = [t['ui_profile']['steps'][0],
+                    *({'action': 'click', 'text': text} for text in
+                      (filter_steps if filter_steps is not None else [t['filters']['category'], t['filters']['range_text']]))]
                 t['ui_profile'].update(window_title_regex=profile.get('window_title_regex', '大众点评'),
                                        list_anchor=profile.get('list_anchor', '智能排序'), process_names=names)
                 t['ui_profile']['steps'][0]['text'] = profile.get('search_label', '搜索商家')
+                t['ui_profile']['search_input_mode'] = profile.get('search_input_mode', 'text')
+                t['ui_profile']['calibration_required'] = profile.get('calibration_required', True)
+                for step in t['ui_profile']['steps']:
+                    step['text'] = step['text'].strip()
                 tasks.append(t)
             template['tasks'] = tasks
             path = self.root / base / 'config.local.json'
@@ -132,6 +164,9 @@ class Dashboard:
             if demo and body.get('check_only'):
                 raise GateError('invalid_ui_run')
             c = load_config(self.root / 'examples/config.synthetic.json', self.root) if demo else self.config
+            if not demo and not body.get('check_only') and any(
+                    t.get('ui_profile', {}).get('calibration_required') for t in c['tasks']):
+                raise GateError('ui_calibration_required')
             defaults = environment_defaults(body.get('provider'))
             settings = AgentSettings() if demo else AgentSettings(
                 provider=defaults['provider'], model=body.get('model') or defaults['model'],
@@ -141,6 +176,8 @@ class Dashboard:
             if not demo and not settings.model:
                 raise GateError('agent_model_required')
             self.cancel = threading.Event()
+            self.events, self.capture_status = [], None
+            self.operation = 'model_check' if body.get('check_only') else 'agent'
             self.result = {'status': 'MODEL_CHECKING' if body.get('check_only') else 'STARTING',
                            'backend': 'SCRIPTED_DEMO' if demo else transport.backend,
                            'provider': 'demo' if demo else settings.provider}
@@ -149,9 +186,35 @@ class Dashboard:
                 try:
                     result = (probe_model(settings, transport, self.cancel) if body.get('check_only') else
                               run_agent(c, settings, allow_ui=body.get('allow_ui', False), demo=demo,
-                                        transport=transport, cancel_event=self.cancel))
+                                        transport=transport, cancel_event=self.cancel, on_event=self.record_event))
                 except BaseException as error:
                     result = {'status': 'STOPPED', 'code': error.code if isinstance(error, GateError) else 'operation_failed'}
+                with self.lock:
+                    self.result = result
+            self.worker = threading.Thread(target=job, daemon=True)
+            self.worker.start()
+            return {'status': 'STARTED'}
+
+    def start_capture_probe(self, body):
+        from .capture import probe_capture
+        with self.lock:
+            if self.running():
+                raise GateError('agent_already_running')
+            seconds = body.get('seconds', 30)
+            if set(body) - {'seconds'} or type(seconds) not in (int, float) or not .1 <= seconds <= 300:
+                raise GateError('invalid_probe_duration')
+            if not self.config.get('_capture', {}).get('enabled'):
+                raise GateError('capture_not_enabled')
+            self.cancel = threading.Event()
+            self.events, self.capture_status = [], None
+            self.operation, self.result = 'capture_probe', {'status': 'CAPTURE_LISTENING'}
+            config = self.config
+            def job():
+                try:
+                    result = probe_capture(config, seconds, cancel_event=self.cancel,
+                                           on_status=lambda status: self.record_event({'event': 'capture_status', 'capture': status}))
+                except Exception as error:
+                    result = {'status': 'STOPPED', 'code': error.code if isinstance(error, GateError) else 'capture_failed'}
                 with self.lock:
                     self.result = result
             self.worker = threading.Thread(target=job, daemon=True)
@@ -214,6 +277,9 @@ def dashboard_server(config, port=8787):
                     self.send(200, {'csrf': csrf})
                 elif self.path == '/api/state':
                     self.send(200, controller.state())
+                elif self.path == '/api/doctor':
+                    from .diagnostics import doctor
+                    self.send(200, doctor(controller.config))
                 elif self.path == '/api/capture':
                     self.send(200, capture_info(controller.config))
                 else:
@@ -238,6 +304,7 @@ def dashboard_server(config, port=8787):
                 if not isinstance(body, dict):
                     raise GateError('invalid_ui_request')
                 handlers = {'/api/config': controller.save_tasks, '/api/run': controller.start,
+                            '/api/capture-probe': controller.start_capture_probe,
                             '/api/retry': controller.retry, '/api/stop': lambda _: controller.stop()}
                 if self.path not in handlers:
                     raise GateError('unknown_ui_action')

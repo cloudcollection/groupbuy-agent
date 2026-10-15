@@ -1,6 +1,6 @@
 # 独立 Agent 使用说明
 
-0.4.0 提供独立的多服务商工具调用循环：请求模型 → 执行本地函数 → 回传结果 → 继续请求。实现 OpenAI Responses、OpenAI 兼容 Chat Completions 和 Anthropic Messages 三种协议。运行时不依赖 Codex 或 MCP。服务商配置见 [多模型 API 指南](model-providers.md)，网页启动与自动 HAR 首次配置见 [CLI / UI 教程](cli-ui-guide.md)。
+0.5.0 提供独立的多服务商工具调用循环：请求模型 → 执行本地函数 → 回传结果 → 继续请求。实现 OpenAI Responses、OpenAI 兼容 Chat Completions 和 Anthropic Messages 三种协议。运行时不依赖 Codex 或 MCP。服务商配置见 [多模型 API 指南](model-providers.md)，网页启动与自动 HAR 首次配置见 [CLI / UI 教程](cli-ui-guide.md)。
 
 ## 安装与不联网演示
 
@@ -88,3 +88,9 @@ python -B -m groupbuy --config config.local.json agent --settings agent.local.js
 已实现请求层、多轮工具回传、门禁、恢复和前台调度；通过模拟模型和虚构数据测试。真实 API 联调、账户模型权限、本机真实页面及其他电脑仍待验证。缺少模型返回 agent_model_required；缺少密钥返回 api_key_required。
 
 他人使用时下载工程，设置自己的模型密钥、平台账号和任务即可。真实配置和采集文件不提交 GitHub。
+
+## 0.5.0 的启动预检与诊断
+
+网页和 CLI 使用同一个 `run_agent`。真实运行先由本机执行依赖检查，再进入模型循环；缺失依赖和已标记未校准任务会在第一轮请求前停止。网页可独立运行环境检查和 30 秒上报测试，不需要 Key；它不会把连通当成采集完成。见 [第一次使用](first-run.md)。
+
+工具调用协议遵循 [OpenAI 官方 Function Calling 文档](https://developers.openai.com/api/docs/guides/function-calling)：应用执行和校验函数，工具结果回传后继续模型循环。请求层保留严格参数与推理消息连续性；没有复制私人请求或身份凭据。

@@ -16,6 +16,102 @@ class UITests(unittest.TestCase):
         self.t['ui_profile'] = {'steps': [{'action': 'type_search', 'text': '搜索商家'}]}
         self.runtime = config(None)['runtime']
 
+    def test_click_guard_accepts_only_unrelated_changes_and_rechecks_risk(self):
+        import hashlib
+        import sys
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        from groupbuy.windows_ui import WindowsDriver
+        class Image:
+            def __init__(self, body, control): self.body, self.control = body, control
+            def tobytes(self): return self.body
+            def crop(self, region): return SimpleNamespace(tobytes=lambda: self.control)
+        old, fresh = Image(b'old-list', b'same-control'), Image(b'new-list', b'same-control')
+        wrapper = Mock(handle=101)
+        wrapper.rectangle.return_value = SimpleNamespace(left=0, top=0, width=lambda: 640, height=lambda: 960)
+        wrapper.capture_as_image.return_value = fresh
+        d = object.__new__(WindowsDriver)
+        d.cancel_event = None
+        d.gui = SimpleNamespace(GetForegroundWindow=lambda: 101)
+        texts = ['搜索']
+        d.ocr = lambda image: ([(None, text, 1) for text in texts], None)
+        f = {'wrapper': wrapper, 'window_size': [640, 960], 'origin': [0, 0], 'image': old,
+             'frame_hash': hashlib.sha256(old.tobytes()).hexdigest(), 'risk_markers': ('验证码',)}
+        with patch.dict(sys.modules, {'numpy': SimpleNamespace(asarray=lambda image: image)}):
+            self.assertIs(d._current(f, (0, 0, 100, 100), '搜索'), wrapper)
+            texts.append('验证码')
+            with self.assertRaisesRegex(GateError, 'verification_or_login'):
+                d._current(f, (0, 0, 100, 100), '搜索')
+            texts[:] = ['搜索', '搜索']
+            with self.assertRaisesRegex(GateError, 'ambiguous_observed_control'):
+                d._current(f, (0, 0, 100, 100), '搜索')
+        wrapper.capture_as_image.return_value = Image(b'changed', b'changed-control')
+        with self.assertRaisesRegex(GateError, 'screen_changed_before_action'):
+            d._current(f, (0, 0, 100, 100), '搜索')
+        with self.assertRaisesRegex(GateError, 'screen_changed_before_action'):
+            d._current(f)  # Scrolling continues to require the full frame.
+
+    def test_outlined_entry_waits_for_search_page_before_typing(self):
+        class OutlineDriver(FakeDriver):
+            def focus_search_observed(self, label, frame):
+                self.actions.append(('focus_search', label))
+        self.t['ui_profile']['search_input_mode'] = 'outlined'
+        driver = OutlineDriver([frame(), frame(), frame(), frame(True), frame(True)])
+        self.assertTrue(collect(self.t, self.runtime, driver)['bottom_reached'])
+        names = [a[0] for a in driver.actions]
+        self.assertEqual(names[:3], ['focus_search', 'wait', 'type_search'])
+
+    def test_outlined_search_requires_unique_button_and_outline(self):
+        from groupbuy.windows_ui import search_input_region
+        observed = {'tokens': [{'text': '搜索', 'box': [[430, 110], [470, 110], [470, 130], [430, 130]]}]}
+        self.assertEqual(search_input_region(observed, '搜索', [(20, 90, 500, 60), (23, 93, 494, 54)]),
+                         (20, 90, 500, 60))
+        with self.assertRaisesRegex(GateError, 'observed_control_missing'):
+            search_input_region(observed, '虚构标签', [(20, 90, 500, 60)])
+        with self.assertRaisesRegex(GateError, 'search_input_outline_not_unique'):
+            search_input_region(observed, '搜索', [(400, 90, 100, 60)])
+        with self.assertRaisesRegex(GateError, 'search_input_outline_not_unique'):
+            search_input_region(observed, '搜索', [(20, 90, 500, 60), (100, 80, 400, 80)])
+        observed['tokens'] *= 2
+        with self.assertRaisesRegex(GateError, 'ambiguous_observed_control'):
+            search_input_region(observed, '搜索', [(20, 90, 500, 60)])
+
+    def test_search_outline_scales_and_moves_with_current_frame(self):
+        from groupbuy.windows_ui import search_input_region
+        for scale in (.75, 1, 2):
+            box = [[100 + x * scale, 50 + y * scale] for x, y in [(430, 110), (470, 110), (470, 130), (430, 130)]]
+            rect = (100 + 20 * scale, 50 + 90 * scale, 500 * scale, 60 * scale)
+            self.assertEqual(search_input_region({'tokens': [{'text': '搜索', 'box': box}]}, '搜索', [rect]), rect)
+
+    def test_missing_filter_reports_step_without_ocr_or_task_text(self):
+        class MissingFilter(FakeDriver):
+            def click_observed(self, label, frame):
+                if label == '虚构筛选':
+                    raise GateError('observed_control_missing')
+                super().click_observed(label, frame)
+        self.t['ui_profile']['steps'].append({'action': 'click', 'text': '虚构筛选'})
+        with self.assertRaises(GateError) as caught:
+            collect(self.t, self.runtime, MissingFilter([frame()] * 6))
+        self.assertEqual(caught.exception.ui_diagnostic, {'step': 2, 'action': 'click'})
+
+    def test_changed_screen_is_reobserved_before_bounded_retry(self):
+        class LoadingDriver(FakeDriver):
+            attempts = 0
+            def click_observed(self, label, frame):
+                self.attempts += 1
+                if self.attempts == 1:
+                    raise GateError('screen_changed_before_action')
+                super().click_observed(label, frame)
+        d = LoadingDriver([frame()] * 8 + [frame(True)] * 3)
+        self.assertTrue(collect(self.t, self.runtime, d)['bottom_reached'])
+        self.assertEqual(d.attempts, 2)
+        self.assertEqual(sum(a[0] == 'type_search' for a in d.actions), 1)
+
+        d = LoadingDriver([frame(), frame(), frame(risk=True)])
+        with self.assertRaisesRegex(GateError, 'verification_or_login'):
+            collect(self.t, self.runtime, d)
+        self.assertEqual(d.attempts, 1)
+
     def test_observed_search_bottom_and_wait(self):
         driver = FakeDriver([frame(), frame(), frame(), frame(True), frame(True)])
         result = collect(self.t, self.runtime, driver)

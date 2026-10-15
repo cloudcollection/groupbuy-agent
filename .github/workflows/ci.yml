@@ -4,14 +4,34 @@ permissions:
   contents: read
 jobs:
   core:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: '3.10'
+          - os: ubuntu-latest
+            python: '3.12'
+          - os: windows-latest
+            python: '3.12'
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python }}
+      - name: Prepare test temporary storage
+        shell: pwsh
+        run: |
+          $taskTemp = Join-Path $env:GITHUB_WORKSPACE 'runtime/ci-tmp'
+          New-Item -ItemType Directory -Force $taskTemp | Out-Null
+          "GB_TEMP_DIR=$taskTemp" >> $env:GITHUB_ENV
+          "TEMP=$taskTemp" >> $env:GITHUB_ENV
+          "TMP=$taskTemp" >> $env:GITHUB_ENV
+          "TMPDIR=$taskTemp" >> $env:GITHUB_ENV
+          "PIP_CACHE_DIR=$taskTemp/pip-cache" >> $env:GITHUB_ENV
       - name: Synthetic core and policy tests
         env:
           PYTHONDONTWRITEBYTECODE: '1'

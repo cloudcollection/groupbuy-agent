@@ -37,7 +37,7 @@
       },
       "filters": {
         "category": "美食",
-        "range_text": "3km"
+        "range_text": "按页面填写"
       },
       "fields": {
         "shops": "*",
@@ -68,13 +68,30 @@
           },
           {
             "action": "click",
+            "text": "全部分类"
+          },
+          {
+            "action": "click",
             "text": "美食"
           },
           {
             "action": "click",
-            "text": "3km"
+            "text": "全部美食"
+          },
+          {
+            "action": "click",
+            "text": "全城"
+          },
+          {
+            "action": "click",
+            "text": "附近"
+          },
+          {
+            "action": "click",
+            "text": "按页面填写"
           }
-        ]
+        ],
+        "calibration_required": true
       }
     },
     {
@@ -87,7 +104,7 @@
       },
       "filters": {
         "category": "美食",
-        "range_text": "3km"
+        "range_text": "按页面填写"
       },
       "fields": {
         "shops": "*",
@@ -118,13 +135,30 @@
           },
           {
             "action": "click",
+            "text": "全部分类"
+          },
+          {
+            "action": "click",
             "text": "美食"
           },
           {
             "action": "click",
-            "text": "3km"
+            "text": "全部美食"
+          },
+          {
+            "action": "click",
+            "text": "全城"
+          },
+          {
+            "action": "click",
+            "text": "附近"
+          },
+          {
+            "action": "click",
+            "text": "按页面填写"
           }
-        ]
+        ],
+        "calibration_required": true
       }
     },
     {
@@ -137,7 +171,7 @@
       },
       "filters": {
         "category": "美食",
-        "range_text": "3km"
+        "range_text": "按页面填写"
       },
       "fields": {
         "shops": "*",
@@ -168,13 +202,30 @@
           },
           {
             "action": "click",
+            "text": "全部分类"
+          },
+          {
+            "action": "click",
             "text": "美食"
           },
           {
             "action": "click",
-            "text": "3km"
+            "text": "全部美食"
+          },
+          {
+            "action": "click",
+            "text": "全城"
+          },
+          {
+            "action": "click",
+            "text": "附近"
+          },
+          {
+            "action": "click",
+            "text": "按页面填写"
           }
-        ]
+        ],
+        "calibration_required": true
       }
     },
     {
@@ -187,7 +238,7 @@
       },
       "filters": {
         "category": "美食",
-        "range_text": "3km"
+        "range_text": "按页面填写"
       },
       "fields": {
         "shops": "*",
@@ -218,13 +269,30 @@
           },
           {
             "action": "click",
+            "text": "全部分类"
+          },
+          {
+            "action": "click",
             "text": "美食"
           },
           {
             "action": "click",
-            "text": "3km"
+            "text": "全部美食"
+          },
+          {
+            "action": "click",
+            "text": "全城"
+          },
+          {
+            "action": "click",
+            "text": "附近"
+          },
+          {
+            "action": "click",
+            "text": "按页面填写"
           }
-        ]
+        ],
+        "calibration_required": true
       }
     },
     {
@@ -237,7 +305,7 @@
       },
       "filters": {
         "category": "美食",
-        "range_text": "3km"
+        "range_text": "按页面填写"
       },
       "fields": {
         "shops": "*",
@@ -268,13 +336,30 @@
           },
           {
             "action": "click",
+            "text": "全部分类"
+          },
+          {
+            "action": "click",
             "text": "美食"
           },
           {
             "action": "click",
-            "text": "3km"
+            "text": "全部美食"
+          },
+          {
+            "action": "click",
+            "text": "全城"
+          },
+          {
+            "action": "click",
+            "text": "附近"
+          },
+          {
+            "action": "click",
+            "text": "按页面填写"
           }
-        ]
+        ],
+        "calibration_required": true
       }
     }
   ],

@@ -111,10 +111,17 @@ class Runner:
             try:
                 e = self._ui(task, record, get_adapter(task['platform']), driver, prior)
                 record.update(status='PENDING', error=None)
+                record.pop('ui_diagnostic', None)
                 return {'task_id': task_id, 'status': 'UI_READY', 'stop_reason': e['stop_reason']}
             except (Exception, KeyboardInterrupt) as error:
                 code = error.code if isinstance(error, GateError) else 'interrupted' if isinstance(error, KeyboardInterrupt) else 'operation_failed'
                 record.update(status='REVIEW' if code == 'scroll_budget' else 'STOPPED', error=code)
+                diagnostic = getattr(error, 'ui_diagnostic', None)
+                if (isinstance(diagnostic, dict) and type(diagnostic.get('step')) is int
+                        and diagnostic.get('action') in {'click', 'type_search'}):
+                    record['ui_diagnostic'] = {'step': diagnostic['step'], 'action': diagnostic['action']}
+                else:
+                    record.pop('ui_diagnostic', None)
                 if code != 'scroll_budget':
                     record.pop('ui_evidence', None)
                 return {'task_id': task_id, 'status': record['status'], 'code': code}
@@ -136,6 +143,7 @@ class Runner:
             if record.get('error') in {'verification_or_login', 'foreground_changed', 'window_changed', 'interrupted'}:
                 record.pop('ui_evidence', None)
             record.update(status='PENDING', error=None)
+            record.pop('ui_diagnostic', None)
             self.save(state)
             return {'task_id': task_id, 'status': 'PENDING'}
 

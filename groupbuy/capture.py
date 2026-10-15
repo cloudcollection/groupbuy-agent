@@ -100,12 +100,32 @@ def capture_source(config, task, record):
 
 
 class CaptureReceiver:
-    def __init__(self, config, *, cancel_event=None):
+    def __init__(self, config, *, cancel_event=None, on_status=None):
         self.config, self.cancel_event = config, cancel_event
         self.route = receiver_settings(config)['route']
         self.lock = threading.RLock()
         self.active = None
         self.server = None
+        self.on_status = on_status
+        self.listening = False
+        self.metrics = {'posts_received': 0, 'valid_reports': 0, 'accepted_entries': 0,
+                        'ignored_entries': 0, 'rejected_reports': 0, 'last_error': None}
+
+    def status(self):
+        with self.lock:
+            return {'listening': self.listening, 'armed': self.active is not None, **self.metrics}
+
+    def _notify(self):
+        if self.on_status:
+            try:
+                self.on_status(self.status())
+            except Exception:
+                pass  # Observability must not interrupt capture or expose exception text.
+
+    def _count(self, **counts):
+        with self.lock:
+            for key, amount in counts.items():
+                self.metrics[key] += amount
 
     def start(self):
         owner = self
@@ -115,6 +135,7 @@ class CaptureReceiver:
                 pass  # HTTP paths, headers and bodies are never logged.
 
             def do_POST(self):
+                owner._count(posts_received=1)
                 self.connection.settimeout(5)
                 if self.headers.get('Origin') or not hmac.compare_digest(self.path.encode(), owner.route.encode()):
                     self.reply(403, 'report_not_authorized')
@@ -144,6 +165,11 @@ class CaptureReceiver:
                     self.reply(400, code)
 
             def reply(self, status, code):
+                if status >= 400:
+                    owner._count(rejected_reports=1)
+                    with owner.lock:
+                        owner.metrics['last_error'] = code
+                owner._notify()
                 body = json.dumps({'code': code}).encode()
                 self.send_response(status)
                 self.send_header('Content-Type', 'application/json')
@@ -162,6 +188,8 @@ class CaptureReceiver:
         self.server.daemon_threads = True
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
+        self.listening = True
+        self._notify()
         return self
 
     def close(self):
@@ -169,6 +197,8 @@ class CaptureReceiver:
             self.server.shutdown()
             self.server.server_close()
             self.thread.join(timeout=5)
+        self.listening = False
+        self._notify()
 
     def __enter__(self):
         return self.start()
@@ -203,8 +233,13 @@ class CaptureReceiver:
             raw = [document]
         if not isinstance(raw, list) or not raw or len(raw) > 1000:
             raise GateError('invalid_report')
+        if any(not isinstance(entry, dict) or not isinstance(entry.get('request'), dict)
+               or not isinstance(entry.get('response'), dict) for entry in raw):
+            raise GateError('invalid_report')
+        self._count(valid_reports=1)
         with self.lock:
             if self.active is None:
+                self._count(ignored_entries=len(raw))
                 return 0
             current = self.active
             count = 0
@@ -215,6 +250,7 @@ class CaptureReceiver:
                     # Unrelated traffic is rejected by the adapter before anything is persisted.
                     safe = get_adapter(current['task']['platform']).capture_entry(current['task'], entry)
                     if safe is None or moment(safe['startedDateTime']) < moment(current['meta']['started_at']):
+                        self._count(ignored_entries=1)
                         continue
                     if moment(safe['startedDateTime']) > moment(utcnow()):
                         raise GateError('capture_clock_mismatch')
@@ -223,6 +259,7 @@ class CaptureReceiver:
                     number = len(current['entries'])
                     atomic_json(current['folder'] / 'entries' / f'{number:06}.json', safe)
                     current['entries'].append(safe)
+                    self._count(accepted_entries=1)
                     current['last'] = time.monotonic()
                     count += 1
             except Exception as error:
@@ -264,7 +301,7 @@ class CaptureReceiver:
                 if complete and settled:
                     target = current['folder'] / 'input.har'
                     snapshot = {'log': {'version': '1.2', 'creator': {'name': 'groupbuy-local',
-                                'version': '0.4.0'}, 'entries': entries}, '_groupbuy_projected': True}
+                                'version': '0.5.0'}, 'entries': entries}, '_groupbuy_projected': True}
                     if target.exists():
                         if load_json(target) != snapshot:
                             raise GateError('capture_integrity_failure')
@@ -281,3 +318,27 @@ class CaptureReceiver:
             if time.monotonic() >= deadline:
                 raise GateError('capture_incomplete_or_not_reporting')
             time.sleep(.1)
+
+
+def probe_capture(config, seconds=30, *, cancel_event=None, on_status=None):
+    """Receive-and-discard connectivity test; never arm a task or save payloads."""
+    import math
+    from .diagnostics import next_action
+    if type(seconds) not in (int, float) or not math.isfinite(seconds) or not .1 <= seconds <= 300:
+        raise GateError('invalid_probe_duration')
+    with CaptureReceiver(config, cancel_event=cancel_event, on_status=on_status) as receiver:
+        deadline = time.monotonic() + seconds
+        result = None
+        while time.monotonic() < deadline:
+            if cancel_event is not None and cancel_event.is_set():
+                result = {'status': 'INTERRUPTED', 'code': 'interrupted'}
+                break
+            status = receiver.status()
+            if status['valid_reports']:
+                result = {'status': 'CAPTURE_CONNECTED'}
+                break
+            time.sleep(.05)
+        if result is None:
+            code = receiver.status()['last_error'] or 'capture_no_reports'
+            result = {'status': 'ATTENTION_REQUIRED', 'code': code, 'next_action': next_action(code)}
+    return {**result, 'capture': receiver.status(), 'collection_verified': False}

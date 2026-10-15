@@ -8,7 +8,7 @@
 
 提供确定性的 Python 工具链，以及直接调用多家模型公开 API 的独立 Agent。独立入口运行时不依赖 Codex 或 MCP；模型选择工具，本地代码执行正常界面流程、校验和导出。真实模型模式使用操作者自己的 API Key；纯工具模式和虚构演示不需要密钥。请求层和核心均只用标准库，Windows UI 依赖可选安装。
 
-**当前状态：0.4.0 / 实验阶段。** CLI 与本地网页共用独立 Agent；新增多服务商配置、Codex 同类 Responses 流式协议与 API 工具调用测试。通过 Reqable 官方报告服务器接收器，首次配置后自动接收并保存脱敏 HAR。已通过虚构数据、本机 HTTP 与模拟界面的闭环验证。真实模型 API、本机小程序/Reqable 联动及其他电脑仍待验证。见 [CLI / UI 入门教程](docs/cli-ui-guide.md) 和 [验证状态](docs/validation.md)。
+**当前状态：0.5.0 / 实验阶段。** 提供独立模型 Agent、CLI 与本机网页，无需 Codex 或 MCP。新增无密钥环境检查、独立上报连通测试、模型/工具实时进度、搜索框与多级筛选校准，以及请求模型前的启动预检。已有虚构数据和真实回环 HTTP 的闭环测试；真实小程序完整采集及其他电脑仍需现场验证。第一次使用请从 [六步教程](docs/first-run.md) 开始。
 
 ## 网页启动：配置、运行、查看进度
 
@@ -19,7 +19,7 @@
 ./start-ui.ps1
 ```
 
-打开 `http://127.0.0.1:8787`，先点击「离线演示」体验无密钥、无联网的虚构流程。实际采集时保存任务、获取本机上传地址，在 Reqable「工具 → 报告服务器」配置一次目标平台规则，再选择 API 服务商、填写模型与 API Key、允许界面操作并启动。每人使用自己的平台登录状态和 API Key。详细步骤见 [CLI / UI 教程](docs/cli-ui-guide.md)。
+打开 `http://127.0.0.1:8787`，先点击「离线演示」体验无密钥、无联网的虚构流程。实际采集时保存任务、获取本机上传地址，在 Reqable「调试 → 报告服务器」配置一次目标平台规则，再选择 API 服务商、填写模型与 API Key、允许界面操作并启动。每人使用自己的平台登录状态和 API Key。先用“检查本机环境”和“测试上报 · 30秒”分开验证本机连接，再测试 API、确认校准并启动。详细步骤见 [第一次使用](docs/first-run.md)。
 
 网页和 CLI 使用同一配置时会继续同一份进度；同一时间运行一个入口。网页不需要 Codex 或 MCP，密钥只用于运行内存。页面标签与窗口配置需要在每台电脑校准。
 
@@ -53,6 +53,8 @@ python -B -m groupbuy --config config.local.json agent --allow-ui
 | 模型服务商 | OpenAI、DeepSeek、通义千问、Kimi、Claude、自定义 Chat/Responses 兼容 API；真实 Key 联调仍待验证 |
 | Codex 同类协议 | Responses SSE、显式消息块、reasoning.effort、encrypted_content 回传；未复用 Codex 登录态 |
 | CLI / 网页 | 共用 Agent 与进度；本机 HTTP、CSRF、开始/停止/重试 |
+| 无密钥诊断 | `doctor` 检查环境；`capture-probe` 只接收并丢弃上报内容，不操作 UI、不改进度 |
+| 实时进度 | 模型轮次、工具起止、POST/有效报告/匹配数据计数；不显示模型原文或请求内容 |
 | 自动 HAR | Reqable 官方报告服务器、本机接收、任务时间窗、落盘前公开字段投影 |
 | 平台隔离 | `PlatformAdapter` 协议，当前仅注册 `dianping` |
 | 任务隔离 | 任务编号 + 配置 SHA-256，拒绝复用含义变化的任务 |
