@@ -143,6 +143,17 @@ class UITests(unittest.TestCase):
                 collect(self.t, self.runtime, driver)
             self.assertEqual(driver.actions, [])
 
+    def test_network_errors_and_restrictions_stop_before_search_even_with_bottom_text(self):
+        for message, code in [('网络错误', 'page_network_error'), ('请检查网络', 'page_network_error'),
+                              ('加载失败', 'page_network_error'), ('账号受限', 'verification_or_login'),
+                              ('访问限制', 'verification_or_login')]:
+            f = frame(bottom=True)
+            f['text'] += ' ' + message
+            driver = FakeDriver([f])
+            with self.assertRaisesRegex(GateError, code):
+                collect(self.t, self.runtime, driver)
+            self.assertEqual(driver.actions, [])
+
     def test_wrong_target_not_confirmed(self):
         f = frame()
         f['text'] = '另一个虚构广场'

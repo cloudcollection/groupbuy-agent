@@ -6,15 +6,18 @@ from ..config import task_hash
 from ..privacy import clean
 
 BOTTOM = ('已经到底', '没有更多', '到底啦', '到底了', '暂无结果')
-RISK = ('验证码', '验证身份', '访问受限', '操作频繁', '请登录', '登录后', '安全验证')
+RISK = ('验证码', '验证身份', '访问受限', '操作频繁', '请登录', '登录后', '安全验证', '账号受限', '访问限制')
+NETWORK_ERRORS = ('网络错误', '网络异常', '连接失败', '加载失败', '请求失败', '请检查网络')
 
 
 def check_frame(frame, expected=None):
-    frame['risk_markers'] = RISK
+    frame['risk_markers'] = RISK + NETWORK_ERRORS
     if not frame.get('foreground'):
         raise GateError('foreground_changed')
     if any(word in frame['text'] for word in RISK):
         raise GateError('verification_or_login')
+    if any(word in frame['text'] for word in NETWORK_ERRORS):
+        raise GateError('page_network_error')
     if expected and (frame['window_id'] != expected['window_id'] or frame['window_size'] != expected['window_size']):
         raise GateError('window_changed')
 

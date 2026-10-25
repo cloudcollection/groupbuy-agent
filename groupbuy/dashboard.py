@@ -70,6 +70,7 @@ class Dashboard:
             for task in self.config['tasks']:
                 record = state['tasks'][task['task_id']]
                 rows.append({'task_id': task['task_id'], 'search_term': task['search_term'],
+                             'center_name': task['target_location'].get('center_name', ''),
                              'city': task['target_location']['city'], 'status': record['status'],
                              'code': record.get('error'), 'har_ready': bool(record.get('auto_har'))})
                 if record.get('ui_diagnostic'):
@@ -131,14 +132,16 @@ class Dashboard:
             original = template['tasks'][0]
             tasks = []
             for i, row in enumerate(rows, 1):
-                if not isinstance(row, dict) or set(row) != {'city', 'search_term'}:
+                if (not isinstance(row, dict) or not {'city', 'search_term'} <= set(row)
+                        or set(row) - {'city', 'search_term', 'center_name'}):
                     raise GateError('invalid_ui_tasks')
                 if any(not isinstance(v, str) or not v.strip() or len(v) > 200 for v in row.values()):
                     raise GateError('invalid_ui_tasks')
                 t = deepcopy(original)
                 ident = f'TASK-{i:03}'
                 t.update(task_id=ident, search_term=row['search_term'].strip(),
-                         target_location={'city': row['city'].strip(), 'center_name': row['search_term'].strip()},
+                         target_location={'city': row['city'].strip(),
+                                          'center_name': row.get('center_name', row['search_term']).strip()},
                          filters={'category': body.get('category', '美食'), 'range_text': body.get('range_text', '3km')})
                 t['input'].update(path=base + '/capture/' + ident, evidence=base + '/manual-evidence/' + ident + '.json')
                 t['ui_profile']['steps'] = [t['ui_profile']['steps'][0],
@@ -244,6 +247,28 @@ class Dashboard:
         self.cancel.set()
         return {'status': 'STOP_REQUESTED'}
 
+    def start_simulation(self, body):
+        from .simulation import run_simulation
+        with self.lock:
+            if self.running():
+                raise GateError('agent_already_running')
+            if body:
+                raise GateError('invalid_ui_request')
+            self.cancel = threading.Event()
+            self.operation, self.result = 'simulation', {'status': 'SIMULATING'}
+            self.events = []
+            def job():
+                try:
+                    result = run_simulation(self.root, cancel_event=self.cancel, on_event=self.record_event)
+                except Exception as error:
+                    result = {'status': 'STOPPED', 'code': error.code if isinstance(error, GateError)
+                              else 'simulation_operation_failed'}
+                with self.lock:
+                    self.result = result
+            self.worker = threading.Thread(target=job, daemon=True)
+            self.worker.start()
+            return {'status': 'STARTED'}
+
     def retry(self, body):
         with self.lock:
             if self.running():
@@ -322,6 +347,7 @@ def dashboard_server(config, port=8787):
                 if not isinstance(body, dict):
                     raise GateError('invalid_ui_request')
                 handlers = {'/api/config': controller.save_tasks, '/api/run': controller.start,
+                            '/api/simulate': controller.start_simulation,
                             '/api/capture-probe': controller.start_capture_probe,
                             '/api/retry': controller.retry, '/api/stop': lambda _: controller.stop()}
                 if self.path not in handlers:

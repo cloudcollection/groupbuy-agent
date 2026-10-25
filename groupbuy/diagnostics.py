@@ -26,6 +26,8 @@ NEXT_ACTIONS = {
     'local_export_required': 'provide_local_export',
     'local_input_required': 'provide_local_input',
     'agent_no_progress': 'review_current_stage_and_tool_support',
+    'page_network_error': 'pause_collection_and_check_normal_app_connectivity',
+    'loading_timeout': 'pause_collection_and_check_normal_app_connectivity',
 }
 
 

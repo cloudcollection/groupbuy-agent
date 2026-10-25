@@ -1,6 +1,6 @@
 # 独立 Agent 使用说明
 
-0.5.1 提供独立的多服务商工具调用循环：请求模型 → 执行本地函数 → 回传结果 → 继续请求。实现 OpenAI Responses、OpenAI 兼容 Chat Completions 和 Anthropic Messages 三种协议。运行时不依赖 Codex 或 MCP。服务商配置见 [多模型 API 指南](model-providers.md)，网页启动与自动 HAR 首次配置见 [CLI / UI 教程](cli-ui-guide.md)。
+0.6.0 提供独立的多服务商工具调用循环：请求模型 → 执行本地函数 → 回传结果 → 继续请求。实现 OpenAI Responses、OpenAI 兼容 Chat Completions 和 Anthropic Messages 三种协议。运行时不依赖 Codex 或 MCP。服务商配置见 [多模型 API 指南](model-providers.md)，网页启动与自动 HAR 首次配置见 [CLI / UI 教程](cli-ui-guide.md)。
 
 ## 安装与不联网演示
 

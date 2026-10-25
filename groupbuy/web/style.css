@@ -36,3 +36,5 @@ table{font-size:13px}th{font-size:12px}.task-status,.har-state{font-size:11px}.r
 select{display:block;width:100%;margin-top:8px;padding:11px 12px;background:#fffefa;color:#34312c;border:1px solid #dedbd3;border-radius:8px;font:inherit;font-size:14px;line-height:1.5;min-height:45px}select:focus{outline:none;border-color:#b77256;box-shadow:0 0 0 3px #b7725614}#base-url{font-size:13px;overflow:hidden;text-overflow:ellipsis}
 
 .actions{flex-wrap:wrap}#doctor-result,#capture-status,#agent-events{overflow-wrap:anywhere;line-height:1.8;margin-top:10px}
+
+#simulation-details{margin-top:16px}#simulation-details summary{cursor:pointer;color:var(--muted);padding:8px 0}.progress .table-wrap>table{min-width:600px}

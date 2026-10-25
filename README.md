@@ -6,11 +6,11 @@
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/License-GPL--3.0-orange)
 
-[第一次使用](docs/first-run.md) · [结果文件](docs/results.md) · [模型 API 配置](docs/model-providers.md) · [工作流与 skill](docs/workflow-design.md)
+[第一次使用](docs/first-run.md) · [完整链路模拟](docs/simulation.md) · [结果文件](docs/results.md) · [模型 API 配置](docs/model-providers.md) · [工作流与 skill](docs/workflow-design.md)
 
 在自己的电脑上，整理商家公开展示的店铺、团购套餐和优惠券，输出可核对的 CSV / JSON。提供本地网页与 CLI；运行不依赖 Codex 或 MCP，各自使用自己的模型 Key 和平台登录状态。
 
-**当前版本 0.5.1，实验阶段。** 仅实现大众点评适配器。离线解析、恢复、自动报告接收及模型协议有自动测试；真实小程序从搜索到最终导出的完整流程仍须现场验证。先跑演示，再从一项真实任务开始。
+**当前版本 0.6.0，实验阶段。** 仅实现大众点评适配器。新增无需 Key 的完整链路模拟，实际经过本地 HTTP/SSE、Gzip 上报、解析、导出和恢复，12 项模拟检查通过。真实小程序从搜索到最终导出的完整流程仍须现场验证。先运行模拟，再从一项真实任务开始。
 
 ## 能做什么
 
@@ -34,14 +34,14 @@ Windows 建议 Python 3.12。把仓库放到 D 盘，在 PowerShell 中运行：
 git clone https://github.com/cloudcollection/groupbuy-agent.git
 cd groupbuy-agent
 ./setup.ps1
-./.venv/Scripts/python.exe -B -m groupbuy agent --demo
+./.venv/Scripts/python.exe -B -m groupbuy simulate
 ~~~
 
-演示不需要 API Key、微信或 Reqable，不操作桌面。它用脚本模拟模型选工具，实际执行虚构数据的解析、质量检查和导出。
+模拟不需要 API Key、微信或 Reqable，不操作桌面。虚构规划器和界面通过真实本地 HTTP/SSE 和 Gzip 报告连接，执行接收、分页、去重、关联、脱敏与导出。
 
-预期看到 `status: COMPLETE`、`backend: SCRIPTED_DEMO`，8 轮、7 次工具调用，完成首批 5 项，第 6 项保留待办。结果位于本次报告指向的 `runtime/agent-demo/<运行编号>/outputs/`。每次演示创建独立目录。
+预期看到 `status: PASS`、`backend: SIMULATED_RESPONSES_SSE` 和 **12 / 12 检查通过**。正常场景先完成 5 项，再恢复第 6 项，共导出 12 家虚构店铺、12 个商品；错误地址、缺页、验证、网络异常、失焦与模型流中断均不会误报完成。报告和 CSV 在 `runtime/simulations/<运行编号>/`。
 
-**这是软件演示，不是真实采集成功或模型能力证明。** [查看文件与字段说明](docs/results.md)。
+网页也提供“模拟完整链路”按钮。原有 `agent --demo` 保留，用于快速查看 5 项离线样例输出。**模拟与演示不证明真实采集成功或模型规划能力。** [场景与验收条件](docs/simulation.md)。
 
 ## 真实采集：使用网页
 
@@ -53,8 +53,8 @@ cd groupbuy-agent
 打开 [本机工作台](http://127.0.0.1:8787/)，保持终端运行。
 
 1. 正常登录微信，打开大众点评小程序。
-2. 填写城市与搜索目标，每批先设为 **1**。核对实际城市、地点中心、类别与页面提供的范围，配置可见文字步骤后保存。
-3. 点击“检查本机环境”；获取完整上传地址，在 Reqable 报告服务器配置两条目标平台规则。
+2. 每行填写 `城市 | 搜索词 | 搜索中心`，第三项可省略。每批先设为 **1**。核对实际城市、地点中心、类别与页面提供的范围，配置可见文字步骤后保存。
+3. 点击“检查本机环境”；复制完整上传地址，在 Reqable 编辑目标平台规则并开启报告服务器总开关。上传地址包含 `/report/` 随机路径，不能使用工作台的 `8787` 页面地址。只有一个免费名额时先配置大众点评域名验证；未配置域名的响应不在覆盖范围。
 4. 点击“测试上报 · 30秒”，在小程序产生新请求。上报为 0 时先修复连接。
 5. 填写支持工具调用的模型、API 地址和 Key，测试 API。工作台分别保留环境、上报与模型的检查记录。
 6. 允许操作小程序，点击“开始 / 继续本批”，保持小程序前台。每项通过终页、分页、安全与关联检查后才导出并继续。
@@ -84,6 +84,7 @@ cd groupbuy-agent
 
 - 支持 OpenAI Responses、Chat Completions 与 Anthropic Messages 协议；提供 DeepSeek、Qwen、Kimi、Claude 及自定义兼容地址配置。各账号和模型仍须独立测试。
 - Codex 同类网关选择“Codex / Responses 兼容 API”。Key 只用于当前运行内存，不使用 Codex 的账号凭据。[模型指南](docs/model-providers.md)。
+- 页面网络异常或持续加载超时会停止，不自动更换账号、网络或绕过限制。
 - 登录、验证、失焦、缺页或解析异常会停止；处理原因后显式重试。连续无进展的检查会提前停止，避免模型空转。
 - 同学只需下载代码、安装环境并完成自己电脑的页面与连接校准。各自保存配置和结果，不共享账号、密钥或真实 HAR。
 - 批量合并与前台定时器见 [使用与恢复](docs/usage.md)。只有首项和首批真实验证后才启用定时；本项目未安装后台系统任务。

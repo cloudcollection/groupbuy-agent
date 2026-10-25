@@ -32,6 +32,33 @@ class DashboardTests(unittest.TestCase):
         return self.ui.save_tasks({'tasks': [{'city': '示例市', 'search_term': '虚构广场'}],
                                    'ui_profile': {'calibration_required': False}})
 
+    def test_center_is_independent_from_query_and_survives_restart(self):
+        self.ui.save_tasks({'tasks': [{'city': '示例市', 'search_term': '附近美食', 'center_name': '虚构广场'}]})
+        state = Dashboard(self.c).state()
+        self.assertEqual(state['tasks'][0]['search_term'], '附近美食')
+        self.assertEqual(state['tasks'][0]['center_name'], '虚构广场')
+        with self.assertRaisesRegex(GateError, 'invalid_ui_tasks'):
+            self.ui.save_tasks({'tasks': [{'city': '示例市', 'search_term': '附近美食', 'center_name': ''}]})
+
+    def test_simulation_is_separate_and_does_not_use_provider_or_live_progress(self):
+        self.save()
+        before = self.ui.state()
+        pointer = (self.root / 'runtime/ui-state.local.json').read_bytes()
+        self.ui.checks['model'] = {'status': 'passed', 'model': 'fictional-model'}
+        with patch('groupbuy.simulation.run_simulation', return_value={
+                'status': 'PASS', 'backend': 'SIMULATED_RESPONSES_SSE', 'cases_passed': 12}) as simulate, patch(
+                'groupbuy.dashboard.make_transport') as provider:
+            self.ui.start_simulation({})
+            self.ui.worker.join(timeout=5)
+            provider.assert_not_called()
+            simulate.assert_called_once()
+        self.assertEqual(self.ui.result['status'], 'PASS')
+        self.assertEqual(self.ui.state()['tasks'], before['tasks'])
+        self.assertEqual(self.ui.checks['model']['status'], 'passed')
+        self.assertEqual((self.root / 'runtime/ui-state.local.json').read_bytes(), pointer)
+        with self.assertRaisesRegex(GateError, 'invalid_ui_request'):
+            self.ui.start_simulation({'api_key': 'fictional-forbidden'})
+
     def test_connection_checks_are_independent_and_not_saved_as_credentials(self):
         self.assertEqual(self.ui.state()['connection_checks'], {'environment': None, 'capture': None, 'model': None})
         self.ui.check_environment()

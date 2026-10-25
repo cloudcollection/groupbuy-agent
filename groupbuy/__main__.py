@@ -12,6 +12,8 @@ def main():
     sub = p.add_subparsers(dest='command', required=True)
     sub.add_parser('plan')
     sub.add_parser('doctor')
+    sim = sub.add_parser('simulate', help='Full fictional HTTP/SSE + capture + export checks; no Key or desktop')
+    sim.add_argument('--details', action='store_true', help='Include per-scenario details in console output')
     sub.add_parser('capture-init', help='Prepare the private loopback URL for Reqable report server')
     capture_probe = sub.add_parser('capture-probe', help='Key-free report connectivity test; no UI or payload storage')
     capture_probe.add_argument('--seconds', type=float, default=30)
@@ -45,6 +47,16 @@ def main():
     m.add_argument('--output', required=True)
     args = p.parse_args()
     try:
+        if args.command == 'simulate':
+            from .simulation import run_simulation
+            result = run_simulation()
+            summary = {k: result[k] for k in ('status', 'backend', 'synthetic', 'live_collection_verified',
+                       'cases_passed', 'cases_total', 'external_api_requests', 'desktop_actions',
+                       'report_path', 'summary_path')}
+            normal = next((c for c in result['scenarios'] if c['scenario'] == 'batch_and_resume' and c['passed']), {})
+            summary.update({k: normal[k] for k in ('completed_tasks', 'shops', 'products', 'http_posts') if k in normal})
+            print(json.dumps(result if args.details else summary, ensure_ascii=False, indent=2))
+            return 0 if result['status'] == 'PASS' else 2
         if args.command == 'model-check':
             from .agent_runtime import load_settings
             from .model_providers import make_transport, probe_model

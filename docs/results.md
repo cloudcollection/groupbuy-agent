@@ -76,3 +76,7 @@ runtime/agent-demo/<运行编号>/
 4. 分享代码更新；真实结果按研究/课程的数据管理约定在仓库之外交接。CSV 不包含完整恢复状态，换电脑续跑不能只复制 CSV。
 
 自动化助手可以参考 [`groupbuy-collection` skill](../skills/groupbuy-collection/SKILL.md)，也可直接阅读步骤。普通使用者不需要安装 Codex、MCP 或任何 skill。
+
+## 完整链路模拟输出
+
+0.6.0 新增 `python -B -m groupbuy simulate`，以及网页“模拟完整链路”。它经过实际本机 HTTP/SSE 和报告接收，比已有文件的离线演示多验证了传输边界。正常场景先 5 项再恢复第 6 项，共 12 家虚构店铺与 12 个商品；12 项正常/故障检查全部通过。报告和每项产物位于独立的 runtime/simulations 目录，原采集进度不变。[运行和文件用途](simulation.md)。
