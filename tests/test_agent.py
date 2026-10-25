@@ -72,6 +72,27 @@ class AgentTests(unittest.TestCase):
         self.tools = CollectionTools(self.runner, self.settings)
         self.assertEqual(self.loop(FakeTransport([]))['status'], 'NO_PENDING_TASKS')
 
+    def test_unchanged_inspection_loop_stops_before_round_budget(self):
+        transport = FakeTransport([call('get_status', ident=f'check-{i}') for i in range(8)])
+        result = self.loop(transport)
+        self.assertEqual(result['code'], 'agent_no_progress')
+        self.assertEqual(result['rounds'], self.settings.max_idle_rounds)
+        self.assertEqual(result['status'], 'INCOMPLETE')
+        self.assertEqual(result['prompt_version'], 'collection-v1')
+        self.assertTrue(all(r['status'] == 'PENDING' for r in self.runner.load_state()['tasks'].values()))
+
+    def test_real_progress_resets_idle_budget(self):
+        self.settings = AgentSettings(model='fictional-model', max_idle_rounds=3)
+        transport = FakeTransport([call('check_environment', ident='a'), call('get_status', ident='b'),
+            call('process_task', {'task_ref': 'task-001'}, 'c'), call('get_status', ident='d'),
+            call('get_status', ident='e'), call('process_task', {'task_ref': 'task-002'}, 'f'), final()])
+        self.assertEqual(self.loop(transport)['status'], 'COMPLETE')
+
+    def test_invalid_idle_budget_rejected(self):
+        for limit in (0, 1, 17, True):
+            with self.assertRaisesRegex(GateError, 'invalid_agent_settings'):
+                AgentSettings(max_idle_rounds=limit)
+
     def test_model_receives_only_references_counts_and_codes(self):
         transport = FakeTransport([call('check_environment', ident='a'), call('get_status', ident='b'),
                                    call('process_task', {'task_ref': 'task-001'}, 'c'), final()])

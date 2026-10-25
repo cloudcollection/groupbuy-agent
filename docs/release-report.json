@@ -1,12 +1,12 @@
 {
   "status": "PASS",
   "counts": {
-    "working_files": 274,
-    "staged_files": 79,
-    "history_commits": 8,
-    "history_blobs": 127
+    "working_files": 327,
+    "staged_files": 83,
+    "history_commits": 9,
+    "history_blobs": 159
   },
-  "excluded_working_files": 5536,
+  "excluded_working_files": 3396,
   "issues": [],
-  "allowlist_sha256": "6b43f3711447a9a43e47774ddc4ca005eed940d4faaf8bd0df8e210069af45d8"
+  "allowlist_sha256": "1509bc98c2ec83ddf960ea52f73ed08cc0640bce58e9c4ecf912db779395bc5c"
 }

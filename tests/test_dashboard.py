@@ -32,6 +32,30 @@ class DashboardTests(unittest.TestCase):
         return self.ui.save_tasks({'tasks': [{'city': '示例市', 'search_term': '虚构广场'}],
                                    'ui_profile': {'calibration_required': False}})
 
+    def test_connection_checks_are_independent_and_not_saved_as_credentials(self):
+        self.assertEqual(self.ui.state()['connection_checks'], {'environment': None, 'capture': None, 'model': None})
+        self.ui.check_environment()
+        self.assertEqual(self.ui.state()['connection_checks']['environment']['status'], 'passed')
+        self.ui.checks['capture'] = {'status': 'passed', 'code': None}
+        self.ui.checks['model'] = {'status': 'passed', 'provider': 'openai', 'model': 'fictional-model', 'code': None}
+        self.save()
+        checks = self.ui.state()['connection_checks']
+        self.assertIsNone(checks['environment'])
+        self.assertIsNone(checks['capture'])
+        self.assertEqual(checks['model']['status'], 'passed')
+        self.assertIsNone(Dashboard(self.c).state()['connection_checks']['model'])
+
+    def test_probe_records_failure_without_erasing_model_check(self):
+        self.save()
+        self.ui.checks['model'] = {'status': 'passed', 'model': 'fictional-model'}
+        with patch('groupbuy.capture.probe_capture', return_value={
+                'status': 'ATTENTION_REQUIRED', 'code': 'capture_no_reports'}):
+            self.ui.start_capture_probe({'seconds': .1})
+            self.ui.worker.join(timeout=3)
+        checks = self.ui.state()['connection_checks']
+        self.assertEqual(checks['capture'], {'status': 'failed', 'code': 'capture_no_reports'})
+        self.assertEqual(checks['model']['status'], 'passed')
+
     def test_offline_landing_page_has_editable_live_recipe_defaults(self):
         profile = self.ui.state()['form_defaults']['ui_profile']
         self.assertTrue(profile['calibration_required'])

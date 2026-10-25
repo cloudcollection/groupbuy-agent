@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "groupbuy-agent"
-version = "0.5.0"
+version = "0.5.1"
 description = "Standalone AI tool loop and auditable public group-buying collection pipeline"
 requires-python = ">=3.10"
 license = {text = "GPL-3.0-only"}
@@ -20,4 +20,4 @@ groupbuy = "groupbuy.__main__:main"
 include = ["groupbuy*"]
 
 [tool.setuptools.package-data]
-groupbuy = ["web/*.html", "web/*.js", "web/*.css", "web/*.svg"]
+groupbuy = ["web/*.html", "web/*.js", "web/*.css", "web/*.svg", "prompts/*.md"]

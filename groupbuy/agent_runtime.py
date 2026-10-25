@@ -7,21 +7,12 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
+from pathlib import Path
 from .common import GateError, load_json
 
 
-INSTRUCTIONS = """You orchestrate a local public group-buying collection batch.
-Use check_environment, then get_status. Process the first unfinished task_ref in
-configuration order. Use collect_ui only for COLLECT_UI or RESUME_UI; pass resume
-true only for RESUME_UI. Use process_task only for PROCESS_LOCAL. Recheck status.
-Use export_har for EXPORT_HAR; it reads the local normally reported traffic.
-Task references are opaque; configuration, evidence and business data remain local.
-All tools execute fixed, validated local code. Never invent task references,
-change settings, bypass quality gates, retry a stopped task, or request credentials.
-WAITING_INPUT means a human must provide a normal local export and restart.
-UI_REQUIRED, UI_UNAVAILABLE and ATTENTION_REQUIRED also require human attention.
-Finish when the batch is complete. Your text cannot mark any task complete.
-"""
+PROMPT_VERSION = 'collection-v1'
+INSTRUCTIONS = (Path(__file__).parent / 'prompts' / 'collection.md').read_text(encoding='utf-8')
 
 
 @dataclass(frozen=True)
@@ -35,6 +26,7 @@ class AgentSettings:
     timeout_seconds: float = 60
     max_elapsed_seconds: float = 1800
     max_ui_segments: int = 3
+    max_idle_rounds: int = 4
 
     def __post_init__(self):
         from .model_providers import validate_provider
@@ -44,7 +36,7 @@ class AgentSettings:
                 or self.provider not in {'openai', 'responses_compatible'}):
             raise GateError('invalid_reasoning_effort')
         for name, lo, hi in [('max_rounds', 1, 128), ('max_output_tokens', 256, 32768),
-                             ('max_ui_segments', 1, 10)]:
+                             ('max_ui_segments', 1, 10), ('max_idle_rounds', 2, 16)]:
             n = getattr(self, name)
             if type(n) is not int or not lo <= n <= hi:
                 raise GateError('invalid_agent_settings')
@@ -159,7 +151,7 @@ def run_loop(settings, tools, transport, *, demo=False, on_event=None, cancel_ev
     """Only host-verified results enter the report; model prose is not persisted."""
     if not demo and not settings.model:
         raise GateError('agent_model_required')
-    rounds, calls, tokens = 0, 0, 0
+    rounds, calls, tokens, idle_rounds = 0, 0, 0, 0
     start = time.monotonic()
     seen_calls = set()
     history = [{'role': 'user', 'content': 'Execute the next configured collection batch.'}]
@@ -171,6 +163,7 @@ def run_loop(settings, tools, transport, *, demo=False, on_event=None, cancel_ev
                   'provider': 'demo' if demo else settings.provider,
                   'status': status, 'rounds': rounds, 'tool_calls': calls,
                   'reported_tokens': tokens, 'batch': snapshot}
+        result['prompt_version'] = PROMPT_VERSION
         if code:
             result['code'] = code
             from .diagnostics import next_action
@@ -221,6 +214,7 @@ def run_loop(settings, tools, transport, *, demo=False, on_event=None, cancel_ev
                     return report('COMPLETE')
                 return report('INCOMPLETE', 'model_stopped_before_completion')
             call = pending[0]
+            before = tools.snapshot()
             ident = call.get('call_id')
             if not isinstance(ident, str) or not ident or ident in seen_calls:
                 raise GateError('duplicate_or_invalid_call')
@@ -250,6 +244,12 @@ def run_loop(settings, tools, transport, *, demo=False, on_event=None, cancel_ev
             snapshot = tools.snapshot()
             if snapshot['status'] in HALTS:
                 return report(snapshot['status'], snapshot.get('code'))
+            # Successful UI segments may advance the list without changing its stage.
+            # Only repeated inspections or rejected calls count as idle work.
+            idle_rounds = (idle_rounds + 1 if snapshot == before and
+                           (name in {'get_status', 'check_environment'} or not result.get('ok')) else 0)
+            if idle_rounds >= settings.max_idle_rounds:
+                return report('INCOMPLETE', 'agent_no_progress')
         return report('INCOMPLETE', 'agent_round_limit')
     except KeyboardInterrupt:
         return report('INTERRUPTED', 'interrupted')

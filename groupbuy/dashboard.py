@@ -35,6 +35,16 @@ class Dashboard:
         self.events = []
         self.capture_status = None
         self.operation = None
+        self.checks = {'environment': None, 'capture': None, 'model': None}
+
+    def check_environment(self):
+        from .diagnostics import doctor
+        with self.lock:
+            report = doctor(self.config)
+            ready = report['core_ready'] and (self.config['mode'] != 'live' or
+                    report['live_environment'] and report['temp_ready'])
+            self.checks['environment'] = {'status': 'passed' if ready else 'failed'}
+            return report
 
     def record_event(self, event):
         with self.lock:
@@ -66,6 +76,7 @@ class Dashboard:
                     rows[-1]['ui_diagnostic'] = record['ui_diagnostic']
             return {'running': self.running(), 'tasks': rows, 'result': self.result,
                     'events': list(self.events), 'capture_status': self.capture_status, 'operation': self.operation,
+                    'connection_checks': deepcopy(self.checks),
                     'output_dir': str(runner.output), 'mode': self.config['mode'],
                     'config_path': str(self.root / load_json(self.pointer)['config_path']) if self.pointer.exists() else '',
                     'form_defaults': {'batch_size': self.config['runtime']['batch_size'],
@@ -148,6 +159,8 @@ class Dashboard:
             loaded = load_config(path, self.root)
             atomic_json(self.pointer, {'config_path': path.relative_to(self.root).as_posix()})
             self.config, self.result = loaded, None
+            self.checks['environment'] = None
+            self.checks['capture'] = None
             return {'status': 'SAVED', 'task_count': len(tasks), 'config_path': str(path)}
 
     def start(self, body):
@@ -191,6 +204,10 @@ class Dashboard:
                     result = {'status': 'STOPPED', 'code': error.code if isinstance(error, GateError) else 'operation_failed'}
                 with self.lock:
                     self.result = result
+                    if body.get('check_only'):
+                        self.checks['model'] = {'status': 'passed' if result.get('status') == 'MODEL_READY' else 'failed',
+                                                'provider': settings.provider, 'model': settings.model,
+                                                'code': result.get('code')}
             self.worker = threading.Thread(target=job, daemon=True)
             self.worker.start()
             return {'status': 'STARTED'}
@@ -217,6 +234,8 @@ class Dashboard:
                     result = {'status': 'STOPPED', 'code': error.code if isinstance(error, GateError) else 'capture_failed'}
                 with self.lock:
                     self.result = result
+                    self.checks['capture'] = {'status': 'passed' if result.get('status') == 'CAPTURE_CONNECTED' else 'failed',
+                                              'code': result.get('code')}
             self.worker = threading.Thread(target=job, daemon=True)
             self.worker.start()
             return {'status': 'STARTED'}
@@ -278,8 +297,7 @@ def dashboard_server(config, port=8787):
                 elif self.path == '/api/state':
                     self.send(200, controller.state())
                 elif self.path == '/api/doctor':
-                    from .diagnostics import doctor
-                    self.send(200, doctor(controller.config))
+                    self.send(200, controller.check_environment())
                 elif self.path == '/api/capture':
                     self.send(200, capture_info(controller.config))
                 else:

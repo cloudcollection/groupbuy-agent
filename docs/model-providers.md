@@ -1,6 +1,6 @@
 # 多模型 API：网页和 CLI 共用
 
-0.5.0 实现三种公开 API 协议：OpenAI Responses、OpenAI 兼容 Chat Completions、Anthropic Messages。预设 DeepSeek、通义千问、Kimi 和 Claude；另提供自定义兼容地址。预设不是所有模型的兼容保证：必须选择账户有权限且支持工具调用的模型。没有共享 Key，不使用 Codex 请求或登录凭据。
+0.5.1 实现三种公开 API 协议：OpenAI Responses、OpenAI 兼容 Chat Completions、Anthropic Messages。预设 DeepSeek、通义千问、Kimi 和 Claude；另提供自定义兼容地址。预设不是所有模型的兼容保证：必须选择账户有权限且支持工具调用的模型。没有共享 Key，不使用 Codex 请求或登录凭据。
 
 ## 网页使用
 

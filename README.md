@@ -1,278 +1,99 @@
-# 通用团购数据采集 Agent
+# Groupbuy Agent · 通用团购数据采集助手
+
+**配置任务，让 Agent 完成搜索、采集、校验与精简导出。**
 
 [![CI](https://github.com/cloudcollection/groupbuy-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/cloudcollection/groupbuy-agent/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/License-GPL--3.0-orange)
 
-面向所有使用者开放的团购数据采集工程。任何人都可以下载代码，在自己的电脑配置公开商家搜索任务、接入正常导出的本地响应，并获得可复核的精简数据。首个适配器为大众点评；其他平台尚未实现。默认不处理个人购买订单。
+[第一次使用](docs/first-run.md) · [结果文件](docs/results.md) · [模型 API 配置](docs/model-providers.md) · [工作流与 skill](docs/workflow-design.md)
 
-提供确定性的 Python 工具链，以及直接调用多家模型公开 API 的独立 Agent。独立入口运行时不依赖 Codex 或 MCP；模型选择工具，本地代码执行正常界面流程、校验和导出。真实模型模式使用操作者自己的 API Key；纯工具模式和虚构演示不需要密钥。请求层和核心均只用标准库，Windows UI 依赖可选安装。
+在自己的电脑上，整理商家公开展示的店铺、团购套餐和优惠券，输出可核对的 CSV / JSON。提供本地网页与 CLI；运行不依赖 Codex 或 MCP，各自使用自己的模型 Key 和平台登录状态。
 
-**当前状态：0.5.0 / 实验阶段。** 提供独立模型 Agent、CLI 与本机网页，无需 Codex 或 MCP。新增无密钥环境检查、独立上报连通测试、模型/工具实时进度、搜索框与多级筛选校准，以及请求模型前的启动预检。已有虚构数据和真实回环 HTTP 的闭环测试；真实小程序完整采集及其他电脑仍需现场验证。第一次使用请从 [六步教程](docs/first-run.md) 开始。
+**当前版本 0.5.1，实验阶段。** 仅实现大众点评适配器。离线解析、恢复、自动报告接收及模型协议有自动测试；真实小程序从搜索到最终导出的完整流程仍须现场验证。先跑演示，再从一项真实任务开始。
 
-## 网页启动：配置、运行、查看进度
+## 能做什么
 
-在 D 盘项目根目录执行：
+| 需求 | 当前实现 | 结果 |
+|---|---|---|
+| 整理多个城市、地点或关键词 | 配置任务、筛选和批次 | 独立任务与可恢复进度 |
+| 让模型驱动采集工作流 | 多轮工具调用、状态校验、预算与空转停止 | 逐项执行，失败时报告原因 |
+| 正常操作微信小程序 | 当前窗口 OCR 定位、搜索、筛选、滚动与终页核对 | 本地任务证据，需每台电脑校准 |
+| 自动接收本地响应 | Reqable 官方报告服务器、时间窗与字段投影 | 通过核对后保存 HAR 并解析 |
+| 精简公开数据 | 店铺与商品关联、价格单位、销量原文与来源 | shops.csv、products.csv、JSON |
+| 分批、暂停和续跑 | 每项先保存，锁与文件校验、显式重试 | 避免串任务或静默覆盖 |
+| 交给同学使用 | 安装脚本、虚构样例、详细指南与采集 skill | 各自本机运行，账号和数据独立 |
 
-```powershell
-./setup.ps1 -WithUI
-./start-ui.ps1
-```
+不处理个人购买订单、支付记录、核销码或手机号。未知信息留空。其他团购平台尚未实现。
 
-打开 `http://127.0.0.1:8787`，先点击「离线演示」体验无密钥、无联网的虚构流程。实际采集时保存任务、获取本机上传地址，在 Reqable「调试 → 报告服务器」配置一次目标平台规则，再选择 API 服务商、填写模型与 API Key、允许界面操作并启动。每人使用自己的平台登录状态和 API Key。先用“检查本机环境”和“测试上报 · 30秒”分开验证本机连接，再测试 API、确认校准并启动。详细步骤见 [第一次使用](docs/first-run.md)。
+## 第一次运行：先看输出
 
-网页和 CLI 使用同一配置时会继续同一份进度；同一时间运行一个入口。网页不需要 Codex 或 MCP，密钥只用于运行内存。页面标签与窗口配置需要在每台电脑校准。
+Windows 建议 Python 3.12。把仓库放到 D 盘，在 PowerShell 中运行：
 
-## 独立 Agent：无需 Codex
-
-```text
-任务配置 → 请求模型 → 模型选择本地工具 → 工具结果回传 → 下一轮
-                         ↓
-              界面操作 / 本地解析 / 校验 / 导出 / 进度
-```
-
-按下文设置 D 盘临时目录后，可先体验不联网的脚本演示。模型决策由程序模拟，真实解析与导出工具每次运行在隔离的虚构输出目录中：
-
-```powershell
-python -B -m groupbuy agent --demo
-```
-
-配置当前进程的 `OPENAI_API_KEY` 和 `OPENAI_MODEL` 后启动真实模型入口：
-
-```powershell
-python -B -m groupbuy --config config.local.json agent
-# 本机界面校准后允许正常界面操作：
-python -B -m groupbuy --config config.local.json agent --allow-ui
-```
-
-密钥的隐藏输入方法见 [Agent 安装步骤](docs/agent.md)。模型只接收不透明任务引用、状态、计数和错误码，原始数据及业务文本留在本机。自动配置使用 `input.kind=reqable`：终页后等待正常报告、校验完整分页、保存投影 HAR，再解析导出。人工 har/json 配置继续使用 WAITING_INPUT 流程。模型不能改配置、执行任意命令或跳过质量门禁。
-
-| 工程能力 | 当前实现 |
-|---|---|
-| 独立模型循环 | Responses / Chat Completions / Messages，串行工具校验、轮数与超时限制 |
-| 模型服务商 | OpenAI、DeepSeek、通义千问、Kimi、Claude、自定义 Chat/Responses 兼容 API；真实 Key 联调仍待验证 |
-| Codex 同类协议 | Responses SSE、显式消息块、reasoning.effort、encrypted_content 回传；未复用 Codex 登录态 |
-| CLI / 网页 | 共用 Agent 与进度；本机 HTTP、CSRF、开始/停止/重试 |
-| 无密钥诊断 | `doctor` 检查环境；`capture-probe` 只接收并丢弃上报内容，不操作 UI、不改进度 |
-| 实时进度 | 模型轮次、工具起止、POST/有效报告/匹配数据计数；不显示模型原文或请求内容 |
-| 自动 HAR | Reqable 官方报告服务器、本机接收、任务时间窗、落盘前公开字段投影 |
-| 平台隔离 | `PlatformAdapter` 协议，当前仅注册 `dianping` |
-| 任务隔离 | 任务编号 + 配置 SHA-256，拒绝复用含义变化的任务 |
-| 分页完整性 | 最新搜索轮次、游标链、重复页检测、明确终页 |
-| 数据边界 | `Shop` / `PublicProduct` 模型，字段投影、单位及原文保留 |
-| 结果恢复 | 进程锁、原子 JSON、逐任务清单、文件 SHA-256 |
-| 发布检查 | 精确白名单、提交前钩子、工作区/暂存区/全部可达历史扫描 |
-
-## 其他模型与 Codex 格式中转
-
-网页选择 DeepSeek、通义千问、Kimi 或 Claude，填该服务商的模型和 Key。仅提供 Chat Completions 的服务选「其他 · OpenAI 兼容 API」；要求 Codex 格式的网关选「Codex / Responses 兼容 API」，填 API 基础地址、模型与推理强度。先点击「测试 API 连接」验证一次工具调用，再启动采集；连接测试可能产生 API 费用，不操作小程序。
-
-Responses 兼容请求使用 `stream=true`、`store=false`、显式 developer/user 消息、`reasoning.effort` 与加密推理回传，读取完整 SSE 终止事件后才执行工具。参照 [Codex 公开请求结构](https://github.com/openai/codex/blob/main/codex-rs/codex-api/src/common.rs) 独立实现；不伪装客户端身份、不读取 Codex 的凭据。
-
-CLI 同样支持服务商、基址和推理强度，密钥从对应环境变量读取：
-
-```powershell
-# 先按多模型指南以隐藏输入设置 GROUPBUY_API_KEY
-./.venv/Scripts/python.exe -B -m groupbuy model-check --provider responses_compatible --base-url https://api.example.invalid/v1 --model gpt-6.1-sol --reasoning-effort medium
-./.venv/Scripts/python.exe -B -m groupbuy --config config.local.json agent --provider responses_compatible --base-url https://api.example.invalid/v1 --model gpt-6.1-sol --reasoning-effort medium --allow-ui
-```
-
-上述地址是虚构示例。协议已用虚构响应与本机 HTTP 验证；真实账号权限、模型工具能力和中转兼容性仍需验证。详见 [多模型 API 指南](docs/model-providers.md)。
-
-## 系统架构
-
-```mermaid
-flowchart TD
-    CLI[CLI] --> A[独立 Agent / 多服务商 API]
-    WEB[本地网页] --> A
-    A --> F[受限本地工具]
-    F --> R
-    C[任务配置] --> R[Runner：规划 / 锁 / 进度]
-    R --> U[平台适配器：观察 / 搜索 / 筛选 / 滚动]
-    U --> E[任务与终页证据]
-    REPORT[Reqable 官方报告服务器] --> CAP[本机接收 / 脱敏投影 / HAR 快照]
-    CAP --> P[平台解析器]
-    L[人工导出的 HAR / JSON] --> P
-    E --> P
-    P --> Q[质量门禁 / 字段投影 / 脱敏]
-    Q --> X[结果 / 精简 JSON / CSV / 清单]
-    X --> S[完成状态与恢复检查点]
-    T[本地定时器] --> R
-```
-
-本地输入层没有 HTTP 请求客户端，不发送捕获的请求。界面动作和平台响应规则位于适配器中；通用运行器不包含界面坐标、平台字段或特定搜索地点。
-
-```text
-groupbuy/
-├── config.py          # 配置校验、字段语义与任务哈希
-├── agent.py           # 独立入口、脚本演示与前台定时
-├── agent_runtime.py   # 通用工具循环、多轮回传和预算
-├── model_providers.py # Chat/Responses/Messages 适配及连接探测
-├── agent_tools.py     # 状态摘要、环境检查、界面/解析工具
-├── dashboard.py       # 本机网页接口与同一个 Agent
-├── web/               # 无外部资源的网页界面
-├── capture.py         # 官方报告接收、时间窗、不可覆盖 HAR 与恢复
-├── runner.py          # 串行批次、锁、逐项事务、恢复
-├── local_input.py     # HAR / JSON、时段、编码及体积限制
-├── adapters/
-│   ├── base.py        # PlatformAdapter 协议
-│   ├── dianping.py    # 店铺/商品投影、轮次与分页
-│   └── ui_flow.py     # 正常界面流程、终页与续段保护
-├── windows_ui.py      # 当前窗口 OCR 定位和输入
-├── models.py          # 公开业务模型
-├── quality.py         # 任务、关联、溯源与安全门禁
-├── privacy.py         # 递归清理及自由文本脱敏
-├── exporter.py        # 精简导出、文件清单、批次合并
-└── scheduler.py       # 北京时间时间槽与重复领取保护
-tools/                 # 虚构样例生成、白名单暂存与敏感扫描
-tests/                 # 合成业务、模拟界面、隔离 Git 仓库测试
-```
-
-任务配置 → 正常界面搜索与筛选 → 滚动至明确终页 → 读取本地导出 → 选择最后搜索轮次 → 完整分页 → 店铺及商品关联 → 脱敏与质量检查 → 精简导出 → 每项更新进度。
-
-## 下载与开始使用
-
-在 GitHub 点击 **Code → Download ZIP**，或克隆本仓库。Windows 用户解压到 D 盘，使用自己的微信、平台登录状态和本地输入，账号与采集数据保留在自己的电脑。共享的是代码、安装说明和虚构样例，没有公共采集账号或云端代采服务。
-
-```powershell
+~~~powershell
 git clone https://github.com/cloudcollection/groupbuy-agent.git
 cd groupbuy-agent
-```
+./setup.ps1
+./.venv/Scripts/python.exe -B -m groupbuy agent --demo
+~~~
 
-第一次使用请按 [公开使用指南](docs/public-getting-started.md) 完成环境检查、虚构样例和一项真实任务校准。通过后再启用批量与定时运行。
+演示不需要 API Key、微信或 Reqable，不操作桌面。它用脚本模拟模型选工具，实际执行虚构数据的解析、质量检查和导出。
 
-## 快速试用虚构样例
+预期看到 `status: COMPLETE`、`backend: SCRIPTED_DEMO`，8 轮、7 次工具调用，完成首批 5 项，第 6 项保留待办。结果位于本次报告指向的 `runtime/agent-demo/<运行编号>/outputs/`。每次演示创建独立目录。
 
-将整个项目放在 D 盘，使用 Python 3.10+。核心只用标准库，不需要安装第三方包。先在项目根目录设置临时目录；如果已有统一的 D 盘临时目录，用环境变量 GB_TEMP_DIR 指向该目录。
+**这是软件演示，不是真实采集成功或模型能力证明。** [查看文件与字段说明](docs/results.md)。
 
-```powershell
-$env:GB_TEMP_DIR = Join-Path $PWD 'runtime/tmp'
-New-Item -ItemType Directory -Force $env:GB_TEMP_DIR | Out-Null
-$env:TEMP = $env:GB_TEMP_DIR
-$env:TMP = $env:GB_TEMP_DIR
-$env:PYTHONDONTWRITEBYTECODE = '1'
-$env:PYTHONUTF8 = '1'
-python -B -m groupbuy plan
-python -B -m groupbuy run
-python -B -m groupbuy run
-python -B -m unittest discover -s tests -v
-```
+## 真实采集：使用网页
 
-样例有 6 个虚构任务。第一批处理 5 个，第二批处理剩下 1 个；再次运行跳过已完成结果。每项生成 result.json（完整业务投影、溯源与质量报告）、compact.json、shops.csv、products.csv、manifest.json。默认输出位于 runtime/outputs；进度位于 runtime/progress.json。所有运行产物均被 Git 忽略。
+~~~powershell
+./setup.ps1 -WithUI
+./start-ui.ps1
+~~~
 
-JSON 保留字段原文和 null。CSV 空值为空格单元，不转换“100+”“79起”；可能被表格软件解释为公式的文本添加单引号。价格含独立单位字段，距离含搜索中心及来源，不自动推算未知坐标。
+打开 [本机工作台](http://127.0.0.1:8787/)，保持终端运行。
 
-## 配置自己的采集任务
+1. 正常登录微信，打开大众点评小程序。
+2. 填写城市与搜索目标，每批先设为 **1**。核对实际城市、地点中心、类别与页面提供的范围，配置可见文字步骤后保存。
+3. 点击“检查本机环境”；获取完整上传地址，在 Reqable 报告服务器配置两条目标平台规则。
+4. 点击“测试上报 · 30秒”，在小程序产生新请求。上报为 0 时先修复连接。
+5. 填写支持工具调用的模型、API 地址和 Key，测试 API。工作台分别保留环境、上报与模型的检查记录。
+6. 允许操作小程序，点击“开始 / 继续本批”，保持小程序前台。每项通过终页、分页、安全与关联检查后才导出并继续。
+7. 打开结果目录核对 CSV，首项通过后再扩大到每批 5 项。
 
-每位使用者使用自己的 config.local.json、输入目录和进度文件。不要共享账号、HAR、证书或 VPN 配置。如果多人协作，由团队统一分配任务编号，避免重复领取；单人使用不需要加入任何分工表。本版没有跨电脑自动派单或集中账号管理。
+**搜索关键词不会自动改变定位中心。** 页面不存在的半径不能填成已支持。Reqable 只面向目标小程序，与模型/VPN 网络分开。本程序不修改系统代理，不安装证书，不重放私有接口。
 
-从 examples/config.live-template.json 复制配置，改成自己授权的公开商家任务；安装可选 UI 依赖用 `./setup.ps1 -WithUI`。配置不会替你登录或修改系统代理。
+详细菜单、上报规则、校准和错误处理见 [六步教程](docs/first-run.md)。CLI 与网页共用同一配置和进度，同一时间运行一个入口。
 
-现场流程和恢复命令见 [使用说明](docs/usage.md)，字段和参数见 [配置说明](docs/configuration.md)，扩展平台见 [适配器说明](docs/adapters.md)。
+## 技术上是什么 Agent？
 
-## 运行状态与恢复语义
+这是 **LLM 工具编排 + GUI 自动化 + OCR + 本地数据处理**：模型按当前任务阶段选择受限工具，本地代码观察窗口并执行动作，独立校验决定任务是否完成。
 
-```mermaid
-stateDiagram-v2
-    [*] --> PENDING
-    PENDING --> RUNNING: 领取下一项
-    RUNNING --> COMPLETE: 门禁通过并保存结果清单
-    RUNNING --> REVIEW: 滚动预算或分页需复核
-    RUNNING --> STOPPED: 风险 / 中断 / 失败
-    REVIEW --> RUNNING: 同任务同窗口同列表续滚
-    REVIEW --> PENDING: 人工修正并显式重试
-    STOPPED --> PENDING: 人工修正并显式重试
-    COMPLETE --> COMPLETE: 校验并跳过完成项
-```
+当前采集模型接收的是任务引用、状态与受控摘要；截图由本地 OCR 处理，没有直接发送给模型。因此不宣称已经实现截图驱动的自主多模态规划。
 
-每项任务保存业务结果及文件清单后才更新进度。崩溃发生在清单保存后、进度更新前，下次运行可校验清单并恢复完成状态；未形成完整清单的目录保留，用新目录重跑。已完成结果不可覆盖，配置变化、文件缺失或哈希变化都会停止复用。
+~~~text
+配置任务 → 环境 / 上报 / 模型检查 → 模型选择工具
+                                       ↓
+正常界面操作 → 本地响应 → 分页与质量核对 → 导出 → 保存进度
+                                       ↓
+                                  失败停止并说明原因
+~~~
 
-同一进度文件使用独占锁。定时器先领取北京时间时间槽，再执行批次，避免同一槽重复启动；崩溃后的时间槽不自动重领。单机执行串行，跨电脑任务分配由使用者管理。
+运行提示位于 [collection.md](groupbuy/prompts/collection.md)，可分发流程位于 [采集 SKILL.md](skills/groupbuy-collection/SKILL.md)。skill 方便助手协助配置和诊断，不是运行 Agent 的前提。[设计依据与参考仓库](docs/workflow-design.md)。
 
-## 质量门禁
+## 模型、恢复与交接
 
-采集次数、界面静止或返回记录数量都不能单独证明完成。写入 `COMPLETE` 前必须满足以下条件：
+- 支持 OpenAI Responses、Chat Completions 与 Anthropic Messages 协议；提供 DeepSeek、Qwen、Kimi、Claude 及自定义兼容地址配置。各账号和模型仍须独立测试。
+- Codex 同类网关选择“Codex / Responses 兼容 API”。Key 只用于当前运行内存，不使用 Codex 的账号凭据。[模型指南](docs/model-providers.md)。
+- 登录、验证、失焦、缺页或解析异常会停止；处理原因后显式重试。连续无进展的检查会提前停止，避免模型空转。
+- 同学只需下载代码、安装环境并完成自己电脑的页面与连接校准。各自保存配置和结果，不共享账号、密钥或真实 HAR。
+- 批量合并与前台定时器见 [使用与恢复](docs/usage.md)。只有首项和首批真实验证后才启用定时；本项目未安装后台系统任务。
 
-1. **查询与筛选一致**：UI 证据绑定任务哈希、搜索词、公开目标及已选筛选，确认字段必须是真正的布尔值。
-2. **界面终页明确**：结果区域出现明确终页文字，等待后再次观察，加载已结束；产品标题中包含终页词不会被当成到底。
-3. **分页完整**：从请求游标 `0` 沿 `nextStartIndex` 到布尔 `isEnd=true`；缺页、孤立页或不明游标回退均拒绝。
-4. **轮次与重复页可解释**：选择最后搜索轮次；该轮不完整时不回退到旧轮。相同重复页去重，冲突重复页停止。
-5. **关联与字段来源完整**：商品必须关联本任务店铺；每条业务记录有可解析的溯源编号。缺失店铺身份不会按店名拼接。
-6. **安全检查通过**：只写入公开业务字段，自由文本先脱敏；日志只保存任务引用、状态、时间和受控错误码。
+## 验证与发布
 
-分段续滚要求原任务、窗口、尺寸及列表哈希一致，并保留原筛选证据。登录、验证码、访问限制、失焦或窗口变化都会停止批次；不能通过续跑绕过。
+[验证记录](docs/validation.md) 区分软件测试、连接探测和真实现场验证。仓库只发布最终源码、配置模板、虚构测试样例、使用说明与检查工具。原始 HAR、真实任务、截图、运行日志、结果和中间笔记留在本地。
 
-## 数据与溯源契约
+开发验证：`python -B -m unittest discover -s tests -v`。发布使用精确白名单、提交前检查，以及工作区、暂存区和全部可达历史敏感扫描。[发布说明](docs/publication.md)。
 
-| 模型 | 核心字段及口径 |
-|---|---|
-| `Shop` | 平台店铺 ID、完整分店名、类别、分类依据、评分、人均及单位、评价原文、商圈/地址、距离语义、采集时间、质量标记 |
-| `PublicProduct` | 店铺关联、商品 ID、套餐/券类型、标题、售价/原价及单位、销量原文、可见规则、采集时间 |
-| `PersonalPurchaseOrder` | 独立边界模型，实例化即拒绝；没有个人订单采集或导出功能 |
+## License
 
-业务主键包含 `task_id` 和 `platform`。批次合并保留同一商家在不同任务下的观察，不跨搜索目标折叠记录。未知字段保持 `null`；缺商品 ID 不合成平台 ID。价格“起”、销量“+”和单位保留，不能把未标单位的数字自动解释为元。
-
-距离值只有在响应明确给出搜索中心且与配置一致时才转换；原文、中心和来源一起保留。分类依据来自业务类别，餐饮、食品零售和待复核分别记录，不凭名称作结论。
-
-`provenance_id` 指向来源文件 SHA-256、响应条目索引、页游标、字段路径和捕获时间。输出不包含原始 HAR、完整响应、请求 URL 或认证头。哈希用于完整性和误串任务防护，不是不可伪造的取证签名。
-
-## 平台适配器接口
-
-```python
-class PlatformAdapter(Protocol):
-    platform: str
-
-    def collect_ui(self, task, runtime, driver, prior=None): ...
-    def validate_evidence(self, task, evidence): ...
-    def parse(self, task, entries, evidence): ...
-```
-
-添加平台时实现协议、登记适配器、提供虚构 schema 和对应测试，并说明实机验证状态。Windows 驱动在动作前验证当前窗口和画面，点击位置来自当前 OCR 文本框；列表区域由本机实际锚点确定。
-
-当前大众点评适配器只解析公开搜索列表及其中的商品。尚未自动进入商家/商品详情，未出现的使用规则留空；自动 HAR 通过官方报告接收实现，首次 Reqable 配置和本机页面校准仍需操作者完成。其他平台适配器尚未实现。
-
-## 批次与调度配置
-
-以下为 `runtime` 和 `schedule` 的配置片段；完整模板见 `examples/`：
-
-```json
-{
-  "runtime": {
-    "batch_size": 5,
-    "max_scrolls": 180,
-    "wheel_steps": 10,
-    "wait_seconds": [1, 2],
-    "retry_limit": 2,
-    "evidence_mode": "structured",
-    "output_dir": "runtime/outputs",
-    "progress_path": "runtime/progress.json"
-  },
-  "schedule": {
-    "enabled": false,
-    "timezone": "Asia/Shanghai",
-    "times": ["09:00", "12:00", "15:00", "19:00"],
-    "live_confirmed": false
-  }
-}
-```
-
-`retry_limit` 控制加载等待次数，不自动重试验证失败。定时器是本地前台进程，保持终端和电脑运行；错过时间槽不补跑，不会安装服务、自动登录或唤醒电脑。
-
-## 测试与 CI
-
-```powershell
-python -B -m unittest discover -s tests -v
-python -B tools/release_check.py
-```
-
-110 项测试覆盖独立模型工具循环、CLI/网页共享进度、自动报告 HTTP/gzip、任务与时段隔离、分页缺口、重复页冲突、轮次切换、关联、分类与单位、脱敏、停止/续滚/恢复、代理隔离、CSRF 和 Git 历史敏感检查。
-
-本机 CLI 演示以 6 项虚构任务验证 `5 → 1 → 0` 的批次续跑，合并得到 12 条店铺观察和 12 条商品观察。GitHub Actions 在 push / pull request 上运行合成测试和发布扫描；CI 的执行状态由顶部徽章显示，不能代替真实页面校准。
-
-## 发布准备
-
-本地新仓库采用 publication-files.json 精确白名单、.gitignore 和 .githooks/pre-commit。先运行 `python -B tools/prepare_index.py`，再运行 `python -B tools/release_check.py`。扫描包含未提交工作文件、暂存内容和所有可达 Git 提交；日志只输出问题类型和文件路径。
-
-扫描不能证明业务文件绝对无敏感信息，发布前仍应人工检查白名单和虚构样例来源。任何真实任务、响应、结果和日志都不能进入白名单。维护者发布步骤见 [发布检查说明](docs/publication.md)。采集命令不会自动上传任务或数据。
-
-许可：GPL-3.0-only，来源说明见 NOTICE.md。
+GPL-3.0-only，见 [LICENSE](LICENSE) 与 [NOTICE.md](NOTICE.md)。项目独立实现；不隶属于大众点评、美团或模型服务商。
