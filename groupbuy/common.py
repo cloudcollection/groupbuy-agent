@@ -53,6 +53,12 @@ def load_json(path):
         raise GateError('invalid_local_json') from None
 
 
+def output_base(root, value):
+    if not isinstance(value, str) or not value.strip() or len(value) > 1500 or '\x00' in value:
+        raise GateError('invalid_output_directory')
+    return path_from(root, value.strip(), write=True)
+
+
 def atomic_json(path, value):
     path = path_from('.', path, write=True)
     path.parent.mkdir(parents=True, exist_ok=True)

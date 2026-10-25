@@ -12,7 +12,7 @@ from .agent import run_agent
 from .agent_runtime import AgentSettings
 from .model_providers import environment_defaults, environment_key, make_transport, provider_choices, probe_model
 from .capture import capture_info
-from .common import GateError, atomic_json, load_json
+from .common import GateError, atomic_json, load_json, output_base
 from .config import load_config
 from .runner import Runner
 
@@ -60,6 +60,12 @@ class Dashboard:
     def running(self):
         return bool(self.worker and self.worker.is_alive())
 
+    def output_setting(self, value=None):
+        path = self.root / 'runtime/output-settings.local.json'
+        if value is None:
+            value = load_json(path).get('output_dir') if path.exists() else self.config['runtime'].get('output_base')
+        return output_base(self.root, value if value is not None else 'runtime/results')
+
     def state(self):
         with self.lock:
             defaults = environment_defaults()
@@ -81,6 +87,7 @@ class Dashboard:
                     'output_dir': str(runner.output), 'mode': self.config['mode'],
                     'config_path': str(self.root / load_json(self.pointer)['config_path']) if self.pointer.exists() else '',
                     'form_defaults': {'batch_size': self.config['runtime']['batch_size'],
+                                      'output_dir': str(self.output_setting()),
                                       'filters': self.config['tasks'][0]['filters'],
                                       'ui_profile': self.config['tasks'][0].get('ui_profile') or
                                           load_json(Path(__file__).resolve().parents[1] / 'examples/config.auto-template.json')['tasks'][0]['ui_profile']},
@@ -98,8 +105,9 @@ class Dashboard:
         with self.lock:
             if self.running():
                 raise GateError('agent_already_running')
-            if set(body) - {'tasks', 'category', 'range_text', 'batch_size', 'ui_profile'}:
+            if set(body) - {'tasks', 'category', 'range_text', 'batch_size', 'ui_profile', 'output_dir'}:
                 raise GateError('invalid_ui_tasks')
+            selected_output = output_base(self.root, body['output_dir']) if 'output_dir' in body else None
             rows = body.get('tasks')
             if not isinstance(rows, list) or not 1 <= len(rows) <= 100:
                 raise GateError('invalid_ui_tasks')
@@ -128,6 +136,9 @@ class Dashboard:
             template['synthetic'] = False
             template['runtime'].update(output_dir=base + '/outputs', progress_path=base + '/progress.json',
                                        batch_size=body.get('batch_size', 5))
+            if selected_output is not None:
+                template['runtime'].update(output_base=str(selected_output),
+                                           output_dir=str(selected_output / 'collections' / Path(base).name / 'outputs'))
             template['capture']['storage_dir'] = base + '/capture'
             original = template['tasks'][0]
             tasks = []
@@ -161,6 +172,8 @@ class Dashboard:
             atomic_json(path, template)
             loaded = load_config(path, self.root)
             atomic_json(self.pointer, {'config_path': path.relative_to(self.root).as_posix()})
+            if selected_output is not None:
+                atomic_json(self.root / 'runtime/output-settings.local.json', {'output_dir': str(selected_output)})
             self.config, self.result = loaded, None
             self.checks['environment'] = None
             self.checks['capture'] = None
@@ -170,13 +183,17 @@ class Dashboard:
         with self.lock:
             if self.running():
                 raise GateError('agent_already_running')
-            if set(body) - {'demo', 'allow_ui', 'model', 'api_key', 'provider', 'base_url', 'reasoning_effort', 'check_only'} or any(
+            if set(body) - {'demo', 'allow_ui', 'model', 'api_key', 'provider', 'base_url', 'reasoning_effort', 'check_only', 'output_dir'} or any(
                     type(body.get(k, False)) is not bool for k in ('demo', 'allow_ui', 'check_only')):
                 raise GateError('invalid_ui_run')
             for key, limit in (('model', 200), ('api_key', 4096), ('provider', 100), ('base_url', 500), ('reasoning_effort', 20)):
                 if key in body and (not isinstance(body[key], str) or len(body[key]) > limit):
                     raise GateError('invalid_ui_run')
             demo = body.get('demo', False)
+            selected_output = (output_base(self.root, body['output_dir']) if 'output_dir' in body
+                               else self.output_setting()) if demo else None
+            if not demo and 'output_dir' in body:
+                raise GateError('output_override_requires_demo')
             if demo and body.get('check_only'):
                 raise GateError('invalid_ui_run')
             c = load_config(self.root / 'examples/config.synthetic.json', self.root) if demo else self.config
@@ -202,6 +219,7 @@ class Dashboard:
                 try:
                     result = (probe_model(settings, transport, self.cancel) if body.get('check_only') else
                               run_agent(c, settings, allow_ui=body.get('allow_ui', False), demo=demo,
+                                        output_dir=str(selected_output) if demo else None,
                                         transport=transport, cancel_event=self.cancel, on_event=self.record_event))
                 except BaseException as error:
                     result = {'status': 'STOPPED', 'code': error.code if isinstance(error, GateError) else 'operation_failed'}
@@ -252,14 +270,17 @@ class Dashboard:
         with self.lock:
             if self.running():
                 raise GateError('agent_already_running')
-            if body:
+            if set(body) - {'output_dir'}:
                 raise GateError('invalid_ui_request')
+            selected_output = (output_base(self.root, body['output_dir']) if 'output_dir' in body
+                               else self.output_setting())
             self.cancel = threading.Event()
             self.operation, self.result = 'simulation', {'status': 'SIMULATING'}
             self.events = []
             def job():
                 try:
-                    result = run_simulation(self.root, cancel_event=self.cancel, on_event=self.record_event)
+                    result = run_simulation(self.root, cancel_event=self.cancel, on_event=self.record_event,
+                                            output_dir=str(selected_output))
                 except Exception as error:
                     result = {'status': 'STOPPED', 'code': error.code if isinstance(error, GateError)
                               else 'simulation_operation_failed'}

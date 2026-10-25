@@ -31,7 +31,7 @@ class SimulationTests(unittest.TestCase):
                                     'GROUPBUY_MODEL_PROXY_URL': 'http://127.0.0.1:1',
                                     'HTTPS_PROXY': 'http://127.0.0.1:1'}), patch(
                 'groupbuy.windows_ui.WindowsDriver', side_effect=AssertionError('desktop forbidden')):
-            report = run_simulation(self.root)
+            report = run_simulation(self.root, output_dir=str(self.root / 'chosen-results'))
         self.assertEqual(report['status'], 'PASS', report['scenarios'])
         self.assertEqual(report['cases_passed'], 12)
         self.assertFalse(report['live_collection_verified'])
@@ -49,6 +49,8 @@ class SimulationTests(unittest.TestCase):
         self.assertEqual(progress.read_text(encoding='utf-8'), '{"status":"PENDING"}')
         self.assertEqual(json.loads(Path(report['report_path']).read_text(encoding='utf-8'))['status'], 'PASS')
         self.assertTrue(Path(report['summary_path']).is_file())
+        self.assertIn(self.root / 'chosen-results', Path(report['report_path']).parents)
+        self.assertFalse((runtime / 'simulations').exists())
         for file in self.root.rglob('*'):
             if file.is_file() and file.suffix in {'.json', '.har', '.csv', '.md'}:
                 self.assertNotIn(marker, file.read_text(encoding='utf-8-sig'))

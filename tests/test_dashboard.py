@@ -32,6 +32,42 @@ class DashboardTests(unittest.TestCase):
         return self.ui.save_tasks({'tasks': [{'city': '示例市', 'search_term': '虚构广场'}],
                                    'ui_profile': {'calibration_required': False}})
 
+    def test_custom_output_is_saved_without_moving_existing_results(self):
+        self.save()
+        previous = self.ui.config['_output']
+        previous.mkdir(parents=True)
+        sentinel = previous / 'existing.txt'
+        sentinel.write_text('preserve', encoding='utf-8')
+        selected = self.root / 'chosen-results'
+        self.ui.save_tasks({'tasks': [{'city': '示例市', 'search_term': '虚构广场'}],
+                            'output_dir': str(selected)})
+        self.assertIn(selected, self.ui.config['_output'].parents)
+        self.assertEqual(Dashboard(self.c).state()['form_defaults']['output_dir'], str(selected))
+        self.assertEqual(sentinel.read_text(encoding='utf-8'), 'preserve')
+        self.assertNotEqual(previous, self.ui.config['_output'])
+
+    def test_invalid_output_preserves_active_config_and_progress(self):
+        self.save()
+        pointer = (self.root / 'runtime/ui-state.local.json').read_bytes()
+        for value in ('', [], None, False):
+            with self.assertRaisesRegex(GateError, 'invalid_output_directory'):
+                self.ui.save_tasks({'tasks': [{'city': '示例市', 'search_term': '虚构广场'}], 'output_dir': value})
+        if os.name == 'nt':
+            with self.assertRaisesRegex(GateError, 'output_requires_d_drive'):
+                self.ui.save_tasks({'tasks': [{'city': '示例市', 'search_term': '虚构广场'}], 'output_dir': 'C:/rejected'})
+        self.assertEqual((self.root / 'runtime/ui-state.local.json').read_bytes(), pointer)
+
+    def test_demo_and_simulation_receive_the_selected_output_directory(self):
+        selected = str(self.root / 'chosen-results')
+        with patch('groupbuy.simulation.run_simulation', return_value={'status': 'PASS'}) as simulate:
+            self.ui.start_simulation({'output_dir': selected})
+            self.ui.worker.join(timeout=5)
+            self.assertEqual(simulate.call_args.kwargs['output_dir'], selected)
+        with patch('groupbuy.dashboard.run_agent', return_value={'status': 'COMPLETE'}) as agent:
+            self.ui.start({'demo': True, 'output_dir': selected})
+            self.ui.worker.join(timeout=5)
+            self.assertEqual(agent.call_args.kwargs['output_dir'], selected)
+
     def test_center_is_independent_from_query_and_survives_restart(self):
         self.ui.save_tasks({'tasks': [{'city': '示例市', 'search_term': '附近美食', 'center_name': '虚构广场'}]})
         state = Dashboard(self.c).state()

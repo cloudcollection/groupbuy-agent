@@ -62,6 +62,17 @@ class AgentTests(unittest.TestCase):
     def loop(self, transport):
         return run_loop(self.settings, self.tools, transport)
 
+    def test_demo_custom_output_isolated_and_repeated_runs_do_not_overwrite(self):
+        selected = self.root / 'chosen-results'
+        first = run_agent(self.loaded, AgentSettings(), demo=True, output_dir=str(selected))
+        second = run_agent(self.loaded, AgentSettings(), demo=True, output_dir=str(selected))
+        self.assertEqual(first['status'], 'COMPLETE')
+        self.assertEqual(second['status'], 'COMPLETE')
+        self.assertIn(selected, Path(first['report_path']).parents)
+        self.assertNotEqual(first['report_path'], second['report_path'])
+        self.assertTrue(Path(first['report_path']).is_file())
+        self.assertTrue(all(r['status'] == 'PENDING' for r in self.runner.load_state()['tasks'].values()))
+
     def test_standalone_loop_batch_and_next_run(self):
         result = self.loop(ScriptedDemoTransport())
         self.assertEqual(result['status'], 'COMPLETE')

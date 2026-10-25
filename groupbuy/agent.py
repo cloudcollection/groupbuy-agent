@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from .agent_runtime import AgentSettings, run_loop
 from .model_providers import make_transport
 from .agent_tools import CollectionTools
-from .common import FileLock, GateError, atomic_json, load_json, path_from, utcnow
+from .common import FileLock, GateError, atomic_json, load_json, output_base, path_from, utcnow
 from .runner import Runner
 from .scheduler import due_slot
 
@@ -36,7 +36,7 @@ class ScriptedDemoTransport:
                 'arguments': json.dumps(args), 'call_id': f'demo-call-{self.round}'}]}
 
 
-def demo_config(config):
+def demo_config(config, output_dir=None):
     # Explicit demo must never operate on real files or reuse live progress.
     if config['mode'] != 'offline' or config.get('synthetic') is not True:
         raise GateError('demo_requires_synthetic_config')
@@ -49,13 +49,17 @@ def demo_config(config):
     c = deepcopy(config)
     base = path_from(c['_root'], 'runtime/agent-demo/' + uuid.uuid4().hex, write=True)
     c['_output'], c['_progress'] = base / 'outputs', base / 'progress.json'
+    if output_dir is not None:
+        c['_output'] = output_base(c['_root'], output_dir) / 'demos' / base.name / 'outputs'
     return c
 
 
-def run_agent(config, settings, *, allow_ui=False, demo=False, transport=None, driver_factory=None, cancel_event=None, on_event=None):
+def run_agent(config, settings, *, allow_ui=False, demo=False, transport=None, driver_factory=None, cancel_event=None, on_event=None, output_dir=None):
     if demo and allow_ui:
         raise GateError('demo_ui_rejected')
-    c = demo_config(config) if demo else config
+    if output_dir is not None and not demo:
+        raise GateError('output_override_requires_demo')
+    c = demo_config(config, output_dir) if demo else config
     if not demo and not settings.model:
         raise GateError('agent_model_required')
     transport = transport or (ScriptedDemoTransport() if demo else make_transport(settings))

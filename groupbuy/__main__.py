@@ -14,6 +14,7 @@ def main():
     sub.add_parser('doctor')
     sim = sub.add_parser('simulate', help='Full fictional HTTP/SSE + capture + export checks; no Key or desktop')
     sim.add_argument('--details', action='store_true', help='Include per-scenario details in console output')
+    sim.add_argument('--output-dir', help='Custom output parent directory; D: is required on Windows')
     sub.add_parser('capture-init', help='Prepare the private loopback URL for Reqable report server')
     capture_probe = sub.add_parser('capture-probe', help='Key-free report connectivity test; no UI or payload storage')
     capture_probe.add_argument('--seconds', type=float, default=30)
@@ -35,6 +36,7 @@ def main():
     a.add_argument('--reasoning-effort', choices=['none', 'minimal', 'low', 'medium', 'high', 'xhigh'])
     a.add_argument('--allow-ui', action='store_true')
     a.add_argument('--demo', action='store_true', help='Scripted synthetic demo; no API calls')
+    a.add_argument('--output-dir', help='Custom demo output parent; live tasks use runtime.output_dir in config')
     a.add_argument('--schedule', action='store_true', help='Foreground Agent schedule, disabled by default')
     probe = sub.add_parser('model-check', help='One API tool-call probe; no collection or UI actions')
     probe.add_argument('--settings', default='examples/agent.example.json')
@@ -49,7 +51,7 @@ def main():
     try:
         if args.command == 'simulate':
             from .simulation import run_simulation
-            result = run_simulation()
+            result = run_simulation(output_dir=args.output_dir)
             summary = {k: result[k] for k in ('status', 'backend', 'synthetic', 'live_collection_verified',
                        'cases_passed', 'cases_total', 'external_api_requests', 'desktop_actions',
                        'report_path', 'summary_path')}
@@ -95,8 +97,10 @@ def main():
                                      base_url=args.base_url, reasoning_effort=args.reasoning_effort)
             if args.demo and args.schedule:
                 raise GateError('demo_schedule_rejected')
+            if args.output_dir is not None and not args.demo:
+                raise GateError('output_override_requires_demo')
             result = (serve_agent(c, settings, allow_ui=args.allow_ui) if args.schedule else
-                      run_agent(c, settings, allow_ui=args.allow_ui, demo=args.demo))
+                      run_agent(c, settings, allow_ui=args.allow_ui, demo=args.demo, output_dir=args.output_dir))
         else:
             driver = None
             if args.command == 'ui' or c['mode'] == 'live' and not getattr(args, 'offline', False):

@@ -8,12 +8,12 @@
 
 ```powershell
 ./setup.ps1
-./.venv/Scripts/python.exe -B -m groupbuy simulate
+./.venv/Scripts/python.exe -B -m groupbuy simulate --output-dir D:/GroupbuyData
 ```
 
 也可以执行 `./start-ui.ps1`，打开工作台后点击 **模拟完整链路**。模拟支持“停止”，在当前安全操作边界生效。结果单独显示，不会把真实任务改为完成。
 
-成功返回 `status: PASS`、`backend: SIMULATED_RESPONSES_SSE`、`cases_passed: 12`。失败返回非零退出码。每次运行生成独立的 `runtime/simulations/<运行编号>/`，不覆盖上次结果。
+成功返回 `status: PASS`、`backend: SIMULATED_RESPONSES_SSE`、`cases_passed: 12`。失败返回非零退出码。指定目录时，每次运行生成 `<输出目录>/simulations/<运行编号>/`。CLI 未指定目录时使用 `runtime/simulations/<运行编号>/`，不覆盖上次结果。网页在任务区填写“输出目录”。
 
 ## 哪些部分实际执行
 

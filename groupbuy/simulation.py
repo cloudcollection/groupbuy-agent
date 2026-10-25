@@ -16,7 +16,7 @@ from pathlib import Path
 from .agent import run_agent
 from .agent_runtime import AgentSettings, post_json
 from .capture import capture_info
-from .common import GateError, atomic_json, digest, path_from, utcnow
+from .common import GateError, atomic_json, digest, output_base, path_from, utcnow
 from .config import load_config
 from .exporter import verify_export
 from .model_providers import codex_responses_body
@@ -272,9 +272,10 @@ def checked_results(config):
     return state, rows
 
 
-def run_simulation(project_root=None, *, cancel_event=None, on_event=None):
+def run_simulation(project_root=None, *, cancel_event=None, on_event=None, output_dir=None):
     root = Path(project_root or Path(__file__).resolve().parents[1]).resolve()
-    base = path_from(root, 'runtime/simulations/' + uuid.uuid4().hex, write=True)
+    parent = output_base(root, output_dir) / 'simulations' if output_dir is not None else root / 'runtime/simulations'
+    base = path_from(root, parent / uuid.uuid4().hex, write=True)
     base.mkdir(parents=True)
     cases = []
     interrupted = False

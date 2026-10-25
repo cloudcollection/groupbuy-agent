@@ -45,3 +45,9 @@ schedule 默认 disabled，timezone 当前仅支持 Asia/Shanghai。times 示例
 接收压缩限 gzip 或不压缩，每报告压缩前/后最大 8 MiB，每报告最多 1000 条，每任务最多 5000 条。报告协议错误不会记录原始内容。官方报告上传失败无重试，重新采集需要显式重试任务。
 
 本地网页默认端口 8787，与捕获端口不同。保存表单会创建 `runtime/ui-workspaces/<编号>`；输出、进度及采集目录互相隔离。接收器私有 URL 配置共用，切换工作区无需重新输入 Reqable URL。详见 [cli-ui-guide.md](cli-ui-guide.md)。
+
+## 自定义输出目录
+
+网页在任务区填写输出目录并保存任务；新的采集结果写入 `<目录>/collections/<工作区编号>/outputs/`，原结果保留原位。示例输出写入 `<目录>/demos/<编号>/outputs/`，完整模拟写入 `<目录>/simulations/<编号>/`。Windows 必须使用 D 盘。
+
+CLI 的真实任务仍在配置的 runtime.output_dir 指定实际目录。示例可用 `agent --demo --output-dir D:/GroupbuyData`；模拟可用 `simulate --output-dir D:/GroupbuyData`。运行编号隔离各次输出，进度保存在各自的工作区。
